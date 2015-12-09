@@ -5,6 +5,7 @@ Documentation is provided at http://python.dronekit.io/examples/mission_basic.ht
 """
 
 import sys
+import time
 import os
 import traceback
 
@@ -22,6 +23,7 @@ from geometry import Geometry
 
 # Main mission program
 def main(argv):
+    start = time.time()
     arguments = Arguments("settings.json", argv)
     mission_settings = arguments.get_settings("mission")
 
@@ -81,7 +83,7 @@ def main(argv):
             viewer.start()
         else:
             ok = True
-            while ok:
+            while ok and time.time() - start < mission_settings.get("max_time"):
                 ok = monitor.step()
                 if ok:
                     monitor.sleep()
@@ -93,8 +95,11 @@ def main(argv):
         # we run under pymavlink.
         traceback.print_exc()
 
+    # TODO: Save plot
     monitor.stop()
     mission.return_to_launch()
+
+    print("Took {} seconds to finish mission.".format(time.time() - start))
 
 # The 'api start' command of pymavlink executes the script using the builtin 
 # function `execfile`, which makes the module name __builtin__, so allow this 

@@ -1,4 +1,5 @@
 import math
+import sys
 import time
 from droneapi.lib import Location
 from collections import namedtuple
@@ -153,6 +154,7 @@ class MockVehicle(object):
         self._home_location = Location(0.0, 0.0, 0.0, is_relative=False)
 
         self._location_callback = None
+        self._ignore_callback = False
 
     def _parse_command(self, cmd):
         # Only supported frame
@@ -186,7 +188,6 @@ class MockVehicle(object):
     def _set_target_location(self, location=None, lat=None, lon=None, alt=None, takeoff=False):
         if takeoff:
             self._takeoff = True
-            self._update_time = time.time()
         elif not self._takeoff:
             return
 
@@ -200,6 +201,11 @@ class MockVehicle(object):
             if alt is None:
                 alt = self._location.alt
             self._target_location = Location(lat, lon, alt, True)
+
+        if takeoff:
+            # Ignore location callback in first update
+            self._ignore_callback = True
+            self._update_time = time.time()
 
         # Change yaw to go to new target location
         dist = self._geometry.get_distance_meters(self._location, self._target_location)
@@ -259,22 +265,11 @@ class MockVehicle(object):
             vAlt = 0.0
         return (vNorth, vEast, vAlt)
 
-    def _update_location(self):
-        if not self._takeoff or not self.armed:
-            return
-
-        new_time = time.time()
-        # seconds since last update (delta time)
-        diff = new_time - self._update_time
+    def _update_distance(self, diff):
         # m/s
         vNorth = 0.0
         vEast = 0.0
         vAlt = 0.0
-
-        if not self._update_attitude(diff):
-            self._update_time = new_time
-            return
-
         if self._target_location is not None:
             if self._speed != 0.0:
                 # Move to location with given `speed`
@@ -306,6 +301,21 @@ class MockVehicle(object):
         north = vNorth * diff
         east = vEast * diff
         alt = vAlt * diff
+        return north, east, alt
+
+    def _update_location(self):
+        if not self._takeoff or not self.armed:
+            return
+
+        new_time = time.time()
+        # seconds since last update (delta time)
+        diff = new_time - self._update_time
+
+        if not self._update_attitude(diff):
+            self._update_time = new_time
+            return
+
+        north, east, alt = self._update_distance(diff)
 
         self.set_location(north, east, alt)
         self.total_time += self._update_time - new_time
@@ -320,15 +330,18 @@ class MockVehicle(object):
         # No need to call _update_location since this forces a new location
         # However, let the location callback know about the change.
 
-        if self._location_callback is False:
-            raise RuntimeError("Recursion detected in location callback")
-        if self._location_callback is not None:
-            location_callback = self._location_callback
-            self._location_callback = False
-            try:
-                location_callback(self._location, value)
-            finally:
-                self._location_callback = location_callback
+        if not self._ignore_callback:
+            if self._location_callback is False:
+                raise RuntimeError("Recursion detected in location callback")
+            if self._location_callback is not None:
+                location_callback = self._location_callback
+                self._location_callback = False
+                try:
+                    location_callback(self._location, value)
+                finally:
+                    self._location_callback = location_callback
+        elif self._geometry.get_distance_meters(self._location, value) > sys.float_info.epsilon:
+            self._ignore_callback = False
 
         self._location = value
         self._update_time = time.time()

@@ -89,17 +89,25 @@ def main(argv):
                     monitor.sleep()
     except RuntimeError, e:
         print(e)
+        print("Mission failed.")
     except Exception, e:
         # Handle exceptions gracefully by attempting to stop the program 
         # ourselves. Unfortunately KeyboardInterrupts are not passed to us when 
         # we run under pymavlink.
         traceback.print_exc()
+        print("Internal error.")
 
     # TODO: Save plot
     monitor.stop()
     mission.return_to_launch()
 
-    print("Took {} seconds to finish mission.".format(time.time() - start))
+    total_time = time.time() - start
+    if total_time >= mission_settings.get("max_time"):
+        print("Mission exceeded maximum execution time.")
+
+    print("Mission time: {} s total".format(total_time))
+    if isinstance(vehicle, MockVehicle):
+        print("Simulation overhead; {} s, run time: {} s".format(vehicle.total_time, total_time - vehicle.total_time))
 
 # The 'api start' command of pymavlink executes the script using the builtin 
 # function `execfile`, which makes the module name __builtin__, so allow this 

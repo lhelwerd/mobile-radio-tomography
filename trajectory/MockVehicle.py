@@ -120,6 +120,10 @@ class MockVehicle(object):
 
         # The last time the vehicle location was updated.
         self._update_time = time.time()
+        # Total time spent in _update_location, including the location setter 
+        # and its callbacks. This is a measure of the simulation time that 
+        # would not exist in a physical run.
+        self.total_time = 0
 
         # The current (updated-on-request) attitude of the vehicle.
         self._attitude = MockAttitude(0.0, 0.0, 0.0, self)
@@ -304,6 +308,7 @@ class MockVehicle(object):
         alt = vAlt * diff
 
         self.set_location(north, east, alt)
+        self.total_time += self._update_time - new_time
 
     @property
     def location(self):

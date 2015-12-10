@@ -24,7 +24,8 @@ class Monitor(object):
         self.sensors = self.environment.get_distance_sensors()
 
         self.colors = ["red", "purple", "black"]
-
+    
+        self.interactive = self.settings.get("interactive")
         self.memory_map = None
         self.plot = None
 
@@ -34,7 +35,7 @@ class Monitor(object):
         return self.step_delay
 
     def use_viewer(self):
-        return self.settings.get("viewer")
+        return self.interactive and self.settings.get("viewer")
 
     def setup(self):
         self.environment.add_packet_action("memory_map_chunk", self.add_memory_map)
@@ -43,7 +44,7 @@ class Monitor(object):
         if self.settings.get("plot"):
             # Setup memory map plot
             from Plot import Plot
-            self.plot = Plot(self.environment, self.memory_map)
+            self.plot = Plot(self.environment, self.memory_map, self.interactive)
 
         if self.environment.get_xbee_sensor():
             thread.start_new_thread(self.xbee_sensor_loop, ())
@@ -79,7 +80,7 @@ class Monitor(object):
                 location = self.memory_map.handle_sensor(sensor_distance, yaw)
                 if add_point is not None:
                     add_point(location)
-                if self.plot:
+                if self.plot and not self.interactive:
                     # Display the edge of the simulated object that is 
                     # responsible for the measured distance, and consequently 
                     # the point itself. This should be the closest "wall" in 
@@ -104,7 +105,8 @@ class Monitor(object):
         # Display the current memory map interactively.
         if self.plot:
             self.plot.plot_lines(self.mission.get_waypoints())
-            self.plot.display()
+            if self.interactive:
+                self.plot.display()
 
         if not self.mission.check_waypoint():
             return False
@@ -135,6 +137,11 @@ class Monitor(object):
             pass
 
     def stop(self):
+        if not self.interactive:
+            self.memory_map.save()
+            if self.plot:
+                self.plot.save()
+
         self.stopped = True
         xbee_sensor = self.environment.get_xbee_sensor()
         if xbee_sensor:

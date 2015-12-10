@@ -64,18 +64,26 @@ class Plot(object):
     def get_plot(self):
         return self.plt
 
-    def display(self):
+    def fill(self):
         if self.plot_polygons is not None:
             self.ax.add_collection(self.plot_polygons)
 
         self._plot_vehicle_angle()
 
         self.plt.imshow(self.memory_map.get_map(), origin='lower')
+
+    def display(self):
+        self.fill()
+
         if self.interactive:
             self.plt.pause(sys.float_info.epsilon)
             self.plt.cla()
         else:
             self.plt.show()
+
+    def save(self):
+        self.fill()
+        self.plt.savefig("plot.eps")
 
     def plot_lines(self, points):
         geometry = self.environment.get_geometry()

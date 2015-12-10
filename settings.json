@@ -40,6 +40,7 @@
         "name": "Mission monitoring",
         "settings": {
             "step_delay": 0.5,
+            "interactive": true,
             "plot": true,
             "viewer": true
         }

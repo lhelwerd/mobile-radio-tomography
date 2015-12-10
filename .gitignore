@@ -26,3 +26,8 @@ __pycache__/
 *.raw
 logs/
 terrain/
+
+# Stored mission result files
+*.log
+*.npy
+*.eps

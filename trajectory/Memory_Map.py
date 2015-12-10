@@ -149,3 +149,10 @@ class Memory_Map(object):
             pass
 
         return loc
+
+    def save(self):
+        """
+        Save the memory map data as a binary NumPy file.
+        The array can be loaded using `np.load('map.npy')`.
+        """
+        np.save('map', self.map)

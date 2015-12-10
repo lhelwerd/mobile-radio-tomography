@@ -54,7 +54,7 @@ def main(argv):
         ("padding", [0.1, 4.0]),
         ("resolution", [1, 5])
     ])
-    combinations = itertools.product(*permutations.values())
+    combinations = list(itertools.product(*permutations.values()))
     i = -1
     for combination in combinations:
         i = i + 1

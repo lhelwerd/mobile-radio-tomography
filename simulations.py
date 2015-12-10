@@ -5,6 +5,12 @@ import itertools
 import subprocess
 from collections import OrderedDict
 
+def format_path(value):
+    if isinstance(value, str):
+        return value.replace('/', ',')
+    else:
+        return value
+
 def format_arg(key, value):
     pair = []
     if key == "scenefile":
@@ -39,17 +45,24 @@ def main(argv):
         ("padding", [0.1, 4.0]),
         ("resolution", [1, 5])
     ])
-    for combination in itertools.product(*permutations.values()):
+    combinations = itertools.product(*permutations.values())
+    i = -1
+    for combination in combinations:
+        i = i + 1
+        print("{}/{} ({:4.0%})".format(i, len(combinations), i/float(len(combinations))))
+
         arguments = dict(zip(permutations.keys(), combination))
-        path = '+'.join(["{}-{}".format(k,v.replace('/',',') if isinstance(v,str) else v) for (k,v) in arguments.iteritems()])
+        path = '+'.join(["{}-{}".format(k, format_path(v)) for (k,v) in arguments.iteritems()])
         print(path)
 
         arg_pairs = [format_arg(k,v) for (k,v) in arguments.iteritems()]
-        args = list(itertools.chain(*arg_pairs))
+        args = ["python", "{}/mission_basic.py".format(os.getcwd())]
+        args += list(itertools.chain(*arg_pairs))
+        args += ["--no-interactive", "--location-check"]
 
         with open("output.log","w") as output:
             with open("error.log","w") as error:
-                retval = subprocess.call(["python", "{}/mission_basic.py".format(os.getcwd())] + args + ["--no-interactive", "--location-check"], stdout=output, stderr=error)
+                retval = subprocess.call(args, stdout=output, stderr=error)
                 print("Return value: {}".format(retval))
 
         if not os.path.exists(path):

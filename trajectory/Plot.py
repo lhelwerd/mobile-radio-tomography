@@ -1,8 +1,12 @@
 import math
 import sys
+import os
 
 import numpy as np
 import matplotlib
+NO_DISPLAY = 'DISPLAY' not in os.environ or os.environ['DISPLAY'] == ''
+if NO_DISPLAY:
+    matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from matplotlib.patches import Polygon, Circle
 from matplotlib.collections import PatchCollection

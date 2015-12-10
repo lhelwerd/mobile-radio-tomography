@@ -68,9 +68,13 @@ def main(argv):
                 search_files = ["output.log", "error.log"]
                 for file in search_files:
                     with open(path + "/" + file) as f:
-                        if not f.read().find(filter):
-                            print("Skipped: Not in output logs")
-                            continue
+                        if f.read().find(filter):
+                            break
+                else:
+                    pass
+
+                print("Skipped: Not in output logs")
+                continue
             else:
                 print("Skipped: not in arguments")
                 continue

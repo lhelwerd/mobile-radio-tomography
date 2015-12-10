@@ -97,7 +97,6 @@ def main(argv):
         traceback.print_exc()
         print("Internal error.")
 
-    # TODO: Save plot
     monitor.stop()
     mission.return_to_launch()
 

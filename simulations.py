@@ -17,21 +17,25 @@ def format_arg(key, value):
         scenes = {
             "castle": {
                 "filename": "tests/vrml/castle.wrl",
-                "translation": [0, -40, 0]
+                "translation": [0, -40, 0],
+                "altitude": 4
             },
             "trees_river": {
                 "filename": "tests/vrml/trees_river.wrl",
-                "translation": [0, 0, 2.5]
+                "translation": [0, 0, 2.5],
+                "altitude": 2.5
             },
             "deranged_house": {
                 "filename": "tests/vrml/deranged_house.wrl",
-                "translation": [4.1, 6.25, 0]
+                "translation": [4.1, 6.25, 0],
+                "altitude": 0.5
             }
         }
         if value not in scenes:
             raise ValueError("Incorrect scene")
 
         pair += ["--translation"] + [str(t) for t in scenes[value]["translation"]]
+        pair += ["--altitude", str(scenes[value]["altitude"])]
         value = scenes[value]["filename"]
 
     pair += ["--{}".format(key.replace('_','-')), str(value)]

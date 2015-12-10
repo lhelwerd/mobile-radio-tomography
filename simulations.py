@@ -38,6 +38,11 @@ def format_arg(key, value):
     return pair
 
 def main(argv):
+    # Search string to decide which experiments to do based on the combination 
+    # name (so Mission_Square or padding-0.1 works) or based on error or output 
+    # log contents
+    filter = argv[0] if len(argv) > 0 else ""
+
     permutations = OrderedDict([
         ("mission_class", ["Mission_Square", "Mission_Browse", "Mission_Search", "Mission_Pathfind"]),
         ("scenefile", ["castle", "trees_river", "deranged_house"]),
@@ -54,6 +59,17 @@ def main(argv):
         arguments = dict(zip(permutations.keys(), combination))
         path = '+'.join(["{}-{}".format(k, format_path(v)) for (k,v) in arguments.iteritems()])
         print(path)
+        if filter != "" and filter not in path:
+            if os.path.exists(path):
+                search_files = ["output.log", "error.log"]
+                for file in search_files:
+                    with open(path + "/" + file) as f:
+                        if not f.read().find(filter):
+                            print("Skipped: Not in output logs")
+                            continue
+            else:
+                print("Skipped: not in arguments")
+                continue
 
         arg_pairs = [format_arg(k,v) for (k,v) in arguments.iteritems()]
         args = ["python", "{}/mission_basic.py".format(os.getcwd())]

@@ -3,7 +3,15 @@ import os
 import shutil
 import itertools
 import subprocess
+import numpy as np
 from collections import OrderedDict
+
+import matplotlib
+# Make it possible to run matplotlib in SSH
+NO_DISPLAY = 'DISPLAY' not in os.environ or os.environ['DISPLAY'] == ''
+if NO_DISPLAY:
+    matplotlib.use('Agg')
+import matplotlib.pyplot as plt
 
 from settings import Arguments
 
@@ -66,6 +74,20 @@ def process(args, path):
     errors = []
     count = 0
     max_time = False
+    if os.path.exists(path + "/error.log") and os.path.getsize(path + "/error.log") > 0:
+        errors.append("fatal-exception")
+    with open(path + "/output.log") as f:
+        log = f.read()
+        if "Mission failed" in log:
+            errors.append("runtime-error")
+        if "Internal error" in log:
+            errors.append("internal-error")
+        if "Mission exceeded maximum execution time" in log:
+            max_time = True
+
+    if os.path.exists(path + "/map.npy"):
+        map = np.load(path + "/map.npy")
+        count = np.count_nonzero(map)
 
     return {
         "args": args,
@@ -106,7 +128,7 @@ def main(argv):
         path = '+'.join(["{}-{}".format(k,v) for (k,v) in path_args])
         old_path = '+'.join(["{}-{}".format(k,v) for (k,v) in path_args if k not in new_args or v != new_args[k]])
         full_path = process_path + "/" + path
-        if os.path.exists(process_path + "/" + old_path):
+        if old_path != path and os.path.exists(process_path + "/" + old_path):
             print("Moving to new path...")
             shutil.move(process_path + "/" + old_path, full_path)
 
@@ -130,6 +152,69 @@ def main(argv):
             data[path] = process(args, full_path)
         else:
             generate(args, full_path)
+
+    if data:
+        bar_width = 0.5
+
+        # Plot of feasible runs
+        counts = []
+        labels = []
+        for combination, info in data.iteritems():
+            if not info["errors"] and info["count"] >= 20:
+                counts.append(info["count"])
+                arg_label = [v.split('_')[-1] for (k,v) in info["args"].iteritems() if k in plot_groups]
+                labels.append('\n'.join(arg_label))
+
+        x_groups = np.arange(len(counts))
+
+        fig, ax = plt.subplots()
+        colors = [(x/float(len(counts)), x/float(2*len(counts)), 0.75) for x in range(len(counts))]
+        rects = ax.bar(x_groups, counts, bar_width, color=colors, ecolor='k')
+
+        ax.set_xlabel('Parameters')
+        ax.set_ylabel('Memory map count')
+        ax.set_title('Feasible')
+        plt.xticks(x_groups + (bar_width / 2.0), ha='center')
+        ax.set_xticklabels(labels)
+
+        plt.grid(True)
+        plt.tight_layout()
+        plt.show()
+
+        # Grouped plots
+        group_combinations = itertools.product(*[permutations[g] for g in plot_groups])
+        for group in group_combinations:
+            counts = []
+            labels = []
+            colors = []
+            for combination, info in data.iteritems():
+                group_value = tuple(info["args"][g] for g in plot_groups)
+                if group_value == group:
+                    counts.append(info["count"])
+                    arg_label = ["{}={}".format(k,v) for (k,v) in info["args"].iteritems() if k not in plot_groups]
+                    print(arg_label)
+                    labels.append('\n'.join(arg_label))
+                    if info["errors"]:
+                        print(info["errors"])
+                        colors.append('r')
+                    elif info["max_time"]:
+                        colors.append('b')
+                    else:
+                        colors.append('g')
+
+            x_groups = np.arange(len(counts))
+            fig, ax = plt.subplots()
+            rects = ax.bar(x_groups, counts, bar_width, color=colors, ecolor='k')
+
+            ax.set_xlabel('Parameters')
+            ax.set_ylabel('Memory map count')
+            ax.set_title(', '.join(group))
+            plt.xticks(x_groups + (bar_width / 2.0), ha='center')
+            ax.set_xticklabels(labels)
+
+            plt.grid(True)
+            plt.tight_layout()
+            plt.show()
 
 if __name__ == "__main__":
     main(sys.argv[1:])

@@ -43,15 +43,15 @@ def format_arg(key, value):
     pair += ["--{}".format(key.replace('_','-')), str(value)]
     return pair
 
-def generate(arg_combinations, path):
-    arg_pairs = [format_arg(k,v) for (k,v) in arg_combinations.iteritems()]
-    args = ["python", "{}/mission_basic.py".format(os.getcwd())]
-    args += list(itertools.chain(*arg_pairs))
-    args += ["--no-interactive", "--location-check"]
+def generate(args, path):
+    arg_pairs = [format_arg(k,v) for (k,v) in args.iteritems()]
+    command = ["python", "{}/mission_basic.py".format(os.getcwd())]
+    command += list(itertools.chain(*arg_pairs))
+    command += ["--no-interactive", "--location-check"]
 
     with open("output.log","w") as output:
         with open("error.log","w") as error:
-            retval = subprocess.call(args, stdout=output, stderr=error)
+            retval = subprocess.call(command, stdout=output, stderr=error)
             print("Return value: {}".format(retval))
 
     if not os.path.exists(path):
@@ -62,11 +62,16 @@ def generate(arg_combinations, path):
         if os.path.exists(file):
             shutil.move(file, path + "/" + file)
 
-def process(arg_combination, path):
+def process(args, path):
+    errors = []
+    count = 0
+    max_time = False
+
     return {
-        "combination": arg_combination,
-        "errors": [],
-        "count": 0
+        "args": args,
+        "errors": errors,
+        "count": count,
+        "max_time": max_time
     }
 
 def main(argv):
@@ -80,22 +85,31 @@ def main(argv):
     process_path = settings.get("process_path")
 
     permutations = OrderedDict([
+        ("padding", [0.1, 4.0]),
+        ("resolution", [1, 10]),
+        ("space_size", [10, 100]),
         ("mission_class", ["Mission_Square", "Mission_Browse", "Mission_Search", "Mission_Pathfind"]),
         ("scenefile", ["castle", "trees_river", "deranged_house"]),
-        ("closeness", [0.1, 2.0]),
-        ("padding", [0.1, 4.0]),
-        ("resolution", [1, 5])
+        ("closeness", [0.1, 2.0])
     ])
+    new_args = {"space_size": 100}
+    plot_groups = ["mission_class", "scenefile"]
     combinations = list(itertools.product(*permutations.values()))
-    data = {}
+    data = OrderedDict()
     i = -1
     for combination in combinations:
         i = i + 1
         print("{}/{} ({:4.0%})".format(i, len(combinations), i/float(len(combinations))))
 
-        arg_combinations = dict(zip(permutations.keys(), combination))
-        path = '+'.join(["{}-{}".format(k, format_path(v)) for (k,v) in arg_combinations.iteritems()])
+        args = OrderedDict(zip(permutations.keys(), combination))
+        path_args = [(k, format_path(v)) for (k,v) in args.iteritems()]
+        path = '+'.join(["{}-{}".format(k,v) for (k,v) in path_args])
+        old_path = '+'.join(["{}-{}".format(k,v) for (k,v) in path_args if k not in new_args or v != new_args[k]])
         full_path = process_path + "/" + path
+        if os.path.exists(process_path + "/" + old_path):
+            print("Moving to new path...")
+            shutil.move(process_path + "/" + old_path, full_path)
+
         print(path)
         if filter != "" and filter not in path:
             if os.path.exists(full_path):
@@ -112,12 +126,10 @@ def main(argv):
                 print("Skipped: not in arguments")
                 continue
 
-        if process_path != "" and os.path.exists(process_path):
-            data[path] = process(arg_combinations, full_path)
+        if process_path != "" and os.path.exists(full_path):
+            data[path] = process(args, full_path)
         else:
-            generate(arg_combinations, full_path)
-
-    print(data)
+            generate(args, full_path)
 
 if __name__ == "__main__":
     main(sys.argv[1:])

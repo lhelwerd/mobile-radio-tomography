@@ -70,6 +70,13 @@
             "rotate_speed": 90.0
         }
     },
+    "simulations": {
+        "name": "Trajectory simulation experiment runner",
+        "settings": {
+            "filter": "",
+            "process_path": ""
+        }
+    },
     "xbee_base": {
         "name": "XBee base",
         "settings": {

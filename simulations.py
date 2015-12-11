@@ -5,6 +5,8 @@ import itertools
 import subprocess
 from collections import OrderedDict
 
+from settings import Arguments
+
 def format_path(value):
     if isinstance(value, str):
         return value.replace('/', ',')
@@ -41,11 +43,41 @@ def format_arg(key, value):
     pair += ["--{}".format(key.replace('_','-')), str(value)]
     return pair
 
+def generate(arg_combinations, path):
+    arg_pairs = [format_arg(k,v) for (k,v) in arg_combinations.iteritems()]
+    args = ["python", "{}/mission_basic.py".format(os.getcwd())]
+    args += list(itertools.chain(*arg_pairs))
+    args += ["--no-interactive", "--location-check"]
+
+    with open("output.log","w") as output:
+        with open("error.log","w") as error:
+            retval = subprocess.call(args, stdout=output, stderr=error)
+            print("Return value: {}".format(retval))
+
+    if not os.path.exists(path):
+        os.mkdir(path)
+
+    files = ["output.log", "error.log", "plot.eps", "map.npy"]
+    for file in files:
+        if os.path.exists(file):
+            shutil.move(file, path + "/" + file)
+
+def process(arg_combination, path):
+    return {
+        "combination": arg_combination,
+        "errors": [],
+        "count": 0
+    }
+
 def main(argv):
+    arguments = Arguments("settings.json", argv)
+    settings = arguments.get_settings("simulations")
+
     # Search string to decide which experiments to do based on the combination 
     # name (so Mission_Square or padding-0.1 works) or based on error or output 
     # log contents
-    filter = argv[0] if len(argv) > 0 else ""
+    filter = settings.get("filter")
+    process_path = settings.get("process_path")
 
     permutations = OrderedDict([
         ("mission_class", ["Mission_Square", "Mission_Browse", "Mission_Search", "Mission_Pathfind"]),
@@ -55,19 +87,21 @@ def main(argv):
         ("resolution", [1, 5])
     ])
     combinations = list(itertools.product(*permutations.values()))
+    data = {}
     i = -1
     for combination in combinations:
         i = i + 1
         print("{}/{} ({:4.0%})".format(i, len(combinations), i/float(len(combinations))))
 
-        arguments = dict(zip(permutations.keys(), combination))
-        path = '+'.join(["{}-{}".format(k, format_path(v)) for (k,v) in arguments.iteritems()])
+        arg_combinations = dict(zip(permutations.keys(), combination))
+        path = '+'.join(["{}-{}".format(k, format_path(v)) for (k,v) in arg_combinations.iteritems()])
+        full_path = process_path + "/" + path
         print(path)
         if filter != "" and filter not in path:
-            if os.path.exists(path):
+            if os.path.exists(full_path):
                 search_files = ["output.log", "error.log"]
                 for file in search_files:
-                    with open(path + "/" + file) as f:
+                    with open(full_path + "/" + file) as f:
                         if filter in f.read():
                             print("Found filter in {}".format(file))
                             break
@@ -78,23 +112,12 @@ def main(argv):
                 print("Skipped: not in arguments")
                 continue
 
-        arg_pairs = [format_arg(k,v) for (k,v) in arguments.iteritems()]
-        args = ["python", "{}/mission_basic.py".format(os.getcwd())]
-        args += list(itertools.chain(*arg_pairs))
-        args += ["--no-interactive", "--location-check"]
+        if process_path != "" and os.path.exists(process_path):
+            data[path] = process(arg_combinations, full_path)
+        else:
+            generate(arg_combinations, full_path)
 
-        with open("output.log","w") as output:
-            with open("error.log","w") as error:
-                retval = subprocess.call(args, stdout=output, stderr=error)
-                print("Return value: {}".format(retval))
-
-        if not os.path.exists(path):
-            os.mkdir(path)
-
-        files = ["output.log", "error.log", "plot.eps", "map.npy"]
-        for file in files:
-            if os.path.exists(file):
-                shutil.move(file, path + "/" + file)
+    print(data)
 
 if __name__ == "__main__":
     main(sys.argv[1:])

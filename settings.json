@@ -74,6 +74,8 @@
         "name": "Trajectory simulation experiment runner",
         "settings": {
             "filter": "",
+            "reverse": false,
+            "only_process": false,
             "process_path": ""
         }
     },

@@ -1,3 +1,4 @@
+import re
 import sys
 import os
 import shutil
@@ -99,12 +100,15 @@ def process(args, path):
 def main(argv):
     arguments = Arguments("settings.json", argv)
     settings = arguments.get_settings("simulations")
+    arguments.check_help()
 
     # Search string to decide which experiments to do based on the combination 
     # name (so Mission_Square or padding-0.1 works) or based on error or output 
     # log contents
     filter = settings.get("filter")
+    reverse = settings.get("reverse")
     process_path = settings.get("process_path")
+    only_process = settings.get("only_process")
 
     permutations = OrderedDict([
         ("padding", [0.1, 4.0]),
@@ -133,24 +137,34 @@ def main(argv):
             shutil.move(process_path + "/" + old_path, full_path)
 
         print(path)
-        if filter != "" and filter not in path:
+        stop = False
+        if filter != "" and re.search(filter, path) is None:
             if os.path.exists(full_path):
                 search_files = ["output.log", "error.log"]
                 for file in search_files:
                     with open(full_path + "/" + file) as f:
-                        if filter in f.read():
+                        if re.search(filter, f.read()) is not None:
                             print("Found filter in {}".format(file))
-                            break
+                            if reverse:
+                                stop = True
+                            else:
+                                break
                 else:
-                    print("Skipped: Not in output logs")
-                    continue
-            else:
-                print("Skipped: not in arguments")
+                    if not reverse:
+                        print("Skipped: Not in output logs")
+                        continue
+            elif not reverse:
+                print("Skipped: Not in arguments")
                 continue
+        elif reverse:
+            print("Skipped: Filter found in path")
+
+        if stop:
+            continue
 
         if process_path != "" and os.path.exists(full_path):
             data[path] = process(args, full_path)
-        else:
+        elif not only_process:
             generate(args, full_path)
 
     if data:

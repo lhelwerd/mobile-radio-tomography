@@ -111,14 +111,15 @@ def main(argv):
     only_process = settings.get("only_process")
 
     permutations = OrderedDict([
-        ("padding", [0.1, 4.0]),
+        ("padding", [0.1, 2.0, 4.0]),
         ("resolution", [1, 10]),
         ("space_size", [10, 100]),
         ("mission_class", ["Mission_Square", "Mission_Browse", "Mission_Search", "Mission_Pathfind"]),
         ("scenefile", ["castle", "trees_river", "deranged_house"]),
-        ("closeness", [0.1, 2.0])
+        ("closeness", [0.1, 2.0]),
+        ("step_delay", [0.25, 0.5])
     ])
-    new_args = {"space_size": 100}
+    new_args = {"space_size": 100, "step_delay": 0.5}
     plot_groups = ["mission_class", "scenefile"]
     combinations = list(itertools.product(*permutations.values()))
     data = OrderedDict()
@@ -130,11 +131,12 @@ def main(argv):
         args = OrderedDict(zip(permutations.keys(), combination))
         path_args = [(k, format_path(v)) for (k,v) in args.iteritems()]
         path = '+'.join(["{}-{}".format(k,v) for (k,v) in path_args])
-        old_path = '+'.join(["{}-{}".format(k,v) for (k,v) in path_args if k not in new_args or v != new_args[k]])
         full_path = process_path + "/" + path
-        if old_path != path and os.path.exists(process_path + "/" + old_path):
-            print("Moving to new path...")
-            shutil.move(process_path + "/" + old_path, full_path)
+        for new_arg, default_val in new_args.iteritems():
+            old_path = '+'.join(["{}-{}".format(k,v) for (k,v) in path_args if k != new_arg or v != default_val])
+            if old_path != path and os.path.exists(process_path + "/" + old_path):
+                print("Moving to new path...")
+                shutil.move(process_path + "/" + old_path, full_path)
 
         print(path)
         stop = False

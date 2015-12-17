@@ -4,6 +4,7 @@ import os
 import shutil
 import itertools
 import subprocess
+import datetime
 import numpy as np
 from collections import OrderedDict
 
@@ -75,6 +76,7 @@ def process(args, path):
     errors = []
     count = 0
     max_time = False
+    run_time = 0.0
     if os.path.exists(path + "/error.log") and os.path.getsize(path + "/error.log") > 0:
         errors.append("fatal-exception")
     with open(path + "/output.log") as f:
@@ -85,6 +87,9 @@ def process(args, path):
             errors.append("internal-error")
         if "Mission exceeded maximum execution time" in log:
             max_time = True
+        m = re.search("run time: ([\d.]+) s", log)
+        if m is not None:
+            run_time = float(m.group(1))
 
     if os.path.exists(path + "/map.npy"):
         map = np.load(path + "/map.npy")
@@ -94,8 +99,60 @@ def process(args, path):
         "args": args,
         "errors": errors,
         "count": count,
-        "max_time": max_time
+        "max_time": max_time,
+        "run_time": run_time
     }
+
+def format_plot_arg(key, value):
+    return "{}={}".format(key.split('_')[0], str(value).split('_')[-1])
+
+def process_plot_data(data, group=(), plot_groups=(), include=None):
+    counts = []
+    labels = []
+    colors = []
+    times = []
+
+    for combination, info in data.iteritems():
+        group_value = tuple(info["args"][g] for g in plot_groups)
+        if group_value == group and (include is None or include(info)):
+            counts.append(info["count"])
+            arg_label = [format_plot_arg(k,v) for (k,v) in info["args"].iteritems() if k not in plot_groups]
+            labels.append('\n'.join(arg_label))
+            times.append("{:0>8}".format(datetime.timedelta(seconds=int(info["run_time"]))))
+            if info["errors"]:
+                colors.append('r')
+            elif info["max_time"]:
+                colors.append('b')
+            else:
+                colors.append('g')
+
+    return {
+        "counts": counts,
+        "labels": labels,
+        "colors": colors,
+        "times": times
+    }
+
+def make_plot(plot_data, title="Memory map per run"):
+    bar_width = 0.5
+    x_groups = np.arange(len(plot_data["counts"]))
+
+    fig, ax = plt.subplots()
+    rects = ax.bar(x_groups, plot_data["counts"], bar_width, color=plot_data["colors"], ecolor='k')
+
+    ax.set_xlabel('Parameters')
+    ax.set_ylabel('Memory map count')
+    ax.set_title(title)
+    plt.xticks(x_groups + (bar_width / 2.0), ha='center')
+    ax.set_xticklabels(plot_data["labels"])
+
+    for (rect, label) in zip(rects, plot_data["times"]):
+        height = rect.get_height()
+        ax.text(rect.get_x() + rect.get_width()/2., 1.05*height, label, ha='center', va='bottom')
+
+    plt.grid(True)
+    plt.tight_layout()
+    plt.show()
 
 def main(argv):
     arguments = Arguments("settings.json", argv)
@@ -170,67 +227,20 @@ def main(argv):
             generate(args, full_path)
 
     if data:
-        bar_width = 0.5
-
         # Plot of feasible runs
-        counts = []
-        labels = []
-        for combination, info in data.iteritems():
-            if not info["errors"] and info["count"] >= 20:
-                counts.append(info["count"])
-                arg_label = [v.split('_')[-1] for (k,v) in info["args"].iteritems() if k in plot_groups]
-                labels.append('\n'.join(arg_label))
+        plot_data = process_plot_data(data, include=lambda info: not info["errors"] and info["count"] > 50)
 
-        x_groups = np.arange(len(counts))
+        length = len(plot_data["counts"])
+        plot_data["colors"] = [(x/float(length), x/float(2*length), 0.75) for x in range(length)]
 
-        fig, ax = plt.subplots()
-        colors = [(x/float(len(counts)), x/float(2*len(counts)), 0.75) for x in range(len(counts))]
-        rects = ax.bar(x_groups, counts, bar_width, color=colors, ecolor='k')
-
-        ax.set_xlabel('Parameters')
-        ax.set_ylabel('Memory map count')
-        ax.set_title('Feasible')
-        plt.xticks(x_groups + (bar_width / 2.0), ha='center')
-        ax.set_xticklabels(labels)
-
-        plt.grid(True)
-        plt.tight_layout()
-        plt.show()
+        make_plot(plot_data, title="Feasible")
 
         # Grouped plots
         group_combinations = itertools.product(*[permutations[g] for g in plot_groups])
         for group in group_combinations:
-            counts = []
-            labels = []
-            colors = []
-            for combination, info in data.iteritems():
-                group_value = tuple(info["args"][g] for g in plot_groups)
-                if group_value == group:
-                    counts.append(info["count"])
-                    arg_label = ["{}={}".format(k,v) for (k,v) in info["args"].iteritems() if k not in plot_groups]
-                    print(arg_label)
-                    labels.append('\n'.join(arg_label))
-                    if info["errors"]:
-                        print(info["errors"])
-                        colors.append('r')
-                    elif info["max_time"]:
-                        colors.append('b')
-                    else:
-                        colors.append('g')
+            plot_data = process_plot_data(data, group, plot_groups)
 
-            x_groups = np.arange(len(counts))
-            fig, ax = plt.subplots()
-            rects = ax.bar(x_groups, counts, bar_width, color=colors, ecolor='k')
-
-            ax.set_xlabel('Parameters')
-            ax.set_ylabel('Memory map count')
-            ax.set_title(', '.join(group))
-            plt.xticks(x_groups + (bar_width / 2.0), ha='center')
-            ax.set_xticklabels(labels)
-
-            plt.grid(True)
-            plt.tight_layout()
-            plt.show()
+            make_plot(plot_data, title=', '.join(group))
 
 if __name__ == "__main__":
     main(sys.argv[1:])

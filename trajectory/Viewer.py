@@ -329,12 +329,13 @@ class Viewer_Interactive(Viewer):
 
         self.current_object = -1
         self.current_face = -1
+        self.show_sensor = True
 
     def _draw_polygon(self, face, i=-1, j=-1):
         if i != -1 and j != -1:
             if i == self.current_object and (self.current_face == -1 or j == self.current_face):
                 glPolygonMode(GL_FRONT_AND_BACK, GL_FILL)
-            else:
+            elif self.show_sensor:
                 for sensor in self.sensors:
                     edge = sensor.get_current_edge()
                     if isinstance(edge, list) and edge[0] == i and edge[1] == j:
@@ -394,6 +395,8 @@ class Viewer_Interactive(Viewer):
         elif symbol == key.R: # reset location
             self.vehicle.location = self.initial_location
             self._reset_camera()
+        elif symbol == key.X: # toggle sensors
+            self.show_sensor = not self.show_sensor
         elif symbol == key.C: # reload objects and colors
             self._load_objects()
         elif symbol == key.O: # select object

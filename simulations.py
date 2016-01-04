@@ -97,6 +97,7 @@ def process(args, path):
 
     return {
         "args": args,
+        "path": path,
         "errors": errors,
         "count": count,
         "max_time": max_time,
@@ -133,7 +134,7 @@ def process_plot_data(data, group=(), plot_groups=(), include=None):
         "times": times
     }
 
-def make_plot(plot_data, title="Memory map per run"):
+def make_plot(plot_data, title="Memory map per run", output_dir="", filename=None):
     bar_width = 0.5
     x_groups = np.arange(len(plot_data["counts"]))
 
@@ -152,7 +153,36 @@ def make_plot(plot_data, title="Memory map per run"):
 
     plt.grid(True)
     plt.tight_layout()
-    plt.show()
+    if NO_DISPLAY:
+        if filename is None:
+            filename = title
+
+        plt.savefig(output_dir + filename + '.pdf')
+    else:
+        plt.show()
+
+def make_table(bests, permutations, plot_groups, key, output_dir=""):
+    last_group = plot_groups[-1]
+    cols = len(permutations[last_group])
+    group_combinations = itertools.product(*[permutations[g] for g in plot_groups])
+    with open(output_dir + key + '.tex', 'w') as f:
+        f.write("\\begin{table}[hb]\n  \\centering\n  \\begin{tabular}{|c|")
+        f.write("c|" * cols)
+        f.write("}\n    ")
+
+        for p in permutations[last_group]:
+            f.write(" & \\verb+{}+".format(p))
+
+        cur_group = None
+        for group in group_combinations:
+            if cur_group != group[0]:
+                cur_group = group[0]
+                f.write(" \\\\ \hline\n    \\verb+{}+".format(cur_group))
+            f.write(" & {}".format(bests[group][key]))
+
+        f.write(" \\\\ \hline\n  \end{tabular}\n  \caption{")
+        f.write("Best {0}s for each {1}".format(key, " and ".join(plot_groups).replace('_',' ')))
+        f.write("}\label{tab:" + key + "}\n\end{table}")
 
 def main(argv):
     arguments = Arguments("settings.json", argv)
@@ -165,6 +195,7 @@ def main(argv):
     filter = settings.get("filter")
     reverse = settings.get("reverse")
     process_path = settings.get("process_path")
+    output_path = settings.get("output_path")
     only_process = settings.get("only_process")
 
     permutations = OrderedDict([
@@ -221,10 +252,10 @@ def main(argv):
         if stop:
             continue
 
+        if not only_process and not os.path.exists(full_path):
+            generate(args, full_path)
         if process_path != "" and os.path.exists(full_path):
             data[path] = process(args, full_path)
-        elif not only_process:
-            generate(args, full_path)
 
     if data:
         # Plot of feasible runs
@@ -237,10 +268,21 @@ def main(argv):
 
         # Grouped plots
         group_combinations = itertools.product(*[permutations[g] for g in plot_groups])
+        bests = {}
         for group in group_combinations:
             plot_data = process_plot_data(data, group, plot_groups)
 
-            make_plot(plot_data, title=', '.join(group))
+            make_plot(plot_data, title=', '.join(group), output_dir=output_path, filename='-'.join(group))
+
+            best_idx = np.argmax(plot_data["counts"])
+            bests[group] = {
+                "label": plot_data["labels"][best_idx],
+                "count": plot_data["counts"][best_idx],
+                "time": plot_data["times"][best_idx]
+            }
+
+        make_table(bests, permutations, plot_groups, "count", output_path)
+        make_table(bests, permutations, plot_groups, "time", output_path)
 
 if __name__ == "__main__":
     main(sys.argv[1:])

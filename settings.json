@@ -76,7 +76,8 @@
             "filter": "",
             "reverse": false,
             "only_process": false,
-            "process_path": ""
+            "process_path": "",
+            "output_path": ""
         }
     },
     "xbee_base": {

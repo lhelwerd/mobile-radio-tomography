@@ -6,6 +6,7 @@ import itertools
 import subprocess
 import datetime
 import numpy as np
+import scipy.misc
 from collections import OrderedDict
 
 import matplotlib
@@ -17,6 +18,27 @@ import matplotlib.pyplot as plt
 
 from settings import Arguments
 
+def get_scenes():
+    return {
+        "castle": {
+            "filename": "tests/vrml/castle.wrl",
+            "translation": [0, -40, 0],
+            "altitude": 4,
+            "display": "castle"
+        },
+        "trees_river": {
+            "filename": "tests/vrml/trees_river.wrl",
+            "translation": [0, 0, 2.5],
+            "altitude": 2.5,
+            "display": "trees"
+        },
+        "deranged_house": {
+            "filename": "tests/vrml/deranged_house.wrl",
+            "translation": [4.1, 6.25, 0],
+            "altitude": 0.5,
+            "display": "house"
+        }
+    }
 def format_path(value):
     if isinstance(value, str):
         return value.replace('/', ',')
@@ -26,23 +48,7 @@ def format_path(value):
 def format_arg(key, value):
     pair = []
     if key == "scenefile":
-        scenes = {
-            "castle": {
-                "filename": "tests/vrml/castle.wrl",
-                "translation": [0, -40, 0],
-                "altitude": 4
-            },
-            "trees_river": {
-                "filename": "tests/vrml/trees_river.wrl",
-                "translation": [0, 0, 2.5],
-                "altitude": 2.5
-            },
-            "deranged_house": {
-                "filename": "tests/vrml/deranged_house.wrl",
-                "translation": [4.1, 6.25, 0],
-                "altitude": 0.5
-            }
-        }
+        scenes = get_scenes()
         if value not in scenes:
             raise ValueError("Incorrect scene")
 
@@ -91,17 +97,18 @@ def process(args, path):
         if m is not None:
             run_time = float(m.group(1))
 
+    map = None
     if os.path.exists(path + "/map.npy"):
         map = np.load(path + "/map.npy")
         count = np.count_nonzero(map)
 
     return {
         "args": args,
-        "path": path,
         "errors": errors,
         "count": count,
         "max_time": max_time,
-        "run_time": run_time
+        "run_time": run_time,
+        "map": map
     }
 
 def format_plot_arg(key, value):
@@ -112,26 +119,29 @@ def process_plot_data(data, group=(), plot_groups=(), include=None):
     labels = []
     colors = []
     times = []
+    maps = []
 
     for combination, info in data.iteritems():
         group_value = tuple(info["args"][g] for g in plot_groups)
         if group_value == group and (include is None or include(info)):
             counts.append(info["count"])
+            maps.append(info["map"])
             arg_label = [format_plot_arg(k,v) for (k,v) in info["args"].iteritems() if k not in plot_groups]
             labels.append('\n'.join(arg_label))
             times.append("{:0>8}".format(datetime.timedelta(seconds=int(info["run_time"]))))
             if info["errors"]:
-                colors.append('r')
+                colors.append('red')
             elif info["max_time"]:
-                colors.append('b')
+                colors.append('blue')
             else:
-                colors.append('g')
+                colors.append('green')
 
     return {
         "counts": counts,
         "labels": labels,
         "colors": colors,
-        "times": times
+        "times": times,
+        "maps": maps
     }
 
 def make_plot(plot_data, title="Memory map per run", output_dir="", filename=None):
@@ -152,12 +162,18 @@ def make_plot(plot_data, title="Memory map per run", output_dir="", filename=Non
         ax.text(rect.get_x() + rect.get_width()/2., 1.05*height, label, ha='center', va='bottom')
 
     plt.grid(True)
+    if filename is None:
+        filename = title
+    end_plot(output_dir, filename)
+
+def end_plot(output_dir, filename):
     plt.tight_layout()
     if NO_DISPLAY:
-        if filename is None:
-            filename = title
 
-        plt.savefig(output_dir + filename + '.pdf')
+        path = output_dir + filename + '.pdf'
+        print("Writing plot to {}".format(path))
+        plt.savefig(path)
+        plt.close()
     else:
         plt.show()
 
@@ -165,24 +181,34 @@ def make_table(bests, permutations, plot_groups, key, output_dir=""):
     last_group = plot_groups[-1]
     cols = len(permutations[last_group])
     group_combinations = itertools.product(*[permutations[g] for g in plot_groups])
-    with open(output_dir + key + '.tex', 'w') as f:
-        f.write("\\begin{table}[hb]\n  \\centering\n  \\begin{tabular}{|c|")
-        f.write("c|" * cols)
-        f.write("}\n    ")
+    scenes = get_scenes()
+
+    path = output_dir + key + '.tex'
+    print("Writing to {}".format(path))
+    with open(path, 'w') as f:
+        f.write("\\begin{subtable}[b]{0.5\\textwidth}\n  \\centering\n")
+        f.write("  \\begin{tabular}{l")
+        f.write("c" * cols)
+        f.write("} \\toprule\n    ")
 
         for p in permutations[last_group]:
-            f.write(" & \\verb+{}+".format(p))
+            f.write(" & \\verb+{}+".format(scenes[p]["display"] if p in scenes else p))
+        f.write(" \\\\ \\midrule")
 
         cur_group = None
         for group in group_combinations:
             if cur_group != group[0]:
-                cur_group = group[0]
-                f.write(" \\\\ \hline\n    \\verb+{}+".format(cur_group))
-            f.write(" & {}".format(bests[group][key]))
+                if cur_group is not None:
+                    f.write(" \\\\")
 
-        f.write(" \\\\ \hline\n  \end{tabular}\n  \caption{")
-        f.write("Best {0}s for each {1}".format(key, " and ".join(plot_groups).replace('_',' ')))
-        f.write("}\label{tab:" + key + "}\n\end{table}")
+                cur_group = group[0]
+                f.write("\n    \\verb+{}+".format(cur_group.split('_')[-1]))
+
+            f.write(" & \color{{{}}}{{{}}}".format(bests[group]["color"], bests[group][key]))
+
+        f.write(" \\\\ \\bottomrule\n  \end{tabular}\n  \caption{")
+        f.write("Best {}s".format(key))
+        f.write("}\label{tab:best_" + key + "}\n\end{subtable}%")
 
 def main(argv):
     arguments = Arguments("settings.json", argv)
@@ -264,7 +290,7 @@ def main(argv):
         length = len(plot_data["counts"])
         plot_data["colors"] = [(x/float(length), x/float(2*length), 0.75) for x in range(length)]
 
-        make_plot(plot_data, title="Feasible")
+        make_plot(plot_data, title="Feasible", output_dir=output_path)
 
         # Grouped plots
         group_combinations = itertools.product(*[permutations[g] for g in plot_groups])
@@ -278,11 +304,16 @@ def main(argv):
             bests[group] = {
                 "label": plot_data["labels"][best_idx],
                 "count": plot_data["counts"][best_idx],
-                "time": plot_data["times"][best_idx]
+                "time": plot_data["times"][best_idx],
+                "color": plot_data["colors"][best_idx],
+                "map": plot_data["maps"][best_idx]
             }
 
-        make_table(bests, permutations, plot_groups, "count", output_path)
-        make_table(bests, permutations, plot_groups, "time", output_path)
+        for key in ["count", "time", "label"]:
+            make_table(bests, permutations, plot_groups, key, output_path)
+
+        for group, data in bests.iteritems():
+            scipy.misc.toimage(data["map"], cmin=0.0, cmax=1.0).save('{}best-{}.png'.format(output_path, '-'.join(group)))
 
 if __name__ == "__main__":
     main(sys.argv[1:])

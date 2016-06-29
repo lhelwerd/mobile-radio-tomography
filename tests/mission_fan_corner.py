@@ -23,11 +23,12 @@ class TestMissionFanCorner(EnvironmentTestCase):
         self.mission = Mission_Fan_Corner(self.environment, settings)
         self.rf_sensor = self.environment.get_rf_sensor()
         self.first_waypoints = [
-            (0, 1), (0, 2), (0, 2), (0, 2),
+            (0, 1), (0, 2), (0, 1), (0, 0),
+            (0, 1), (0, 2), (1, 2), (2, 2),
+            (1, 2), (0, 2),
             (0, 1), (0, 0), (1, 0), (2, 0),
-            (1, 0), (0, 0), (1, 0), (2, 0),
-            (2, 1), (2, 2), (1, 2), (0, 2),
-            (0, 1), (0, 0), (0, 0), (0, 0)
+            (1, 0), (0, 0),
+            (0, 0), (0, 0), (0, 0), (0, 0)
         ]
 
     def test_setup_robot_vehicle(self):
@@ -68,10 +69,11 @@ class TestMissionFanCorner(EnvironmentTestCase):
         waypoints = list(self.mission.waypoints)
         self.assertEqual(waypoints, [
             (1, 2), (2, 2), (2, 1), (2, 0),
-            (2, 1), (2, 2), (1, 2), (0, 2),
-            (0, 2), (0, 2), (0, 1), (0, 0),
-            (1, 0), (2, 0), (2, 1), (2, 2),
-            (2, 2), (2, 2), (1, 2), (0, 2)
+            (1, 0), (0, 0), (1, 0), (2, 0),
+            (2, 1), (2, 2),
+            (2, 2), (2, 2), (2, 2), (2, 2),
+            (2, 1), (2, 0),
+            (2, 1), (2, 2), (1, 2), (0, 2)
         ])
 
     @patch.object(Robot_Vehicle, "_state_loop")

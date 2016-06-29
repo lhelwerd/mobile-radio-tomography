@@ -12,7 +12,7 @@ class TestMissionFanCorner(EnvironmentTestCase):
             "--vehicle-class", "Robot_Vehicle_Arduino",
             "--geometry-class", "Geometry", "--space-size", "3",
             "--number-of-sensors", "2", "--closeness", "0",
-            "--rf-sensor-synchronization"
+            "--rf-sensor-synchronization", "--home-direction", "1"
         ], use_infrared_sensor=False)
 
         super(TestMissionFanCorner, self).setUp()
@@ -23,10 +23,7 @@ class TestMissionFanCorner(EnvironmentTestCase):
         self.mission = Mission_Fan_Corner(self.environment, settings)
         self.rf_sensor = self.environment.get_rf_sensor()
         self.first_waypoints = [
-            (1, 0), (2, 0), (1, 0), (0, 0),
-            (0, 1), (0, 2),
-            (0, 1), (0, 0), (0, 1), (0, 2),
-            (1, 2), (2, 2), (2, 1), (2, 0), (1, 0), (0, 0),
+            (0, 1), (0, 2), (1, 2), (2, 2), (2, 1), (2, 0), (1, 0), (0, 0),
             (0, 0), (0, 0), (0, 0), (0, 0),
             (0, 1), (0, 2), (1, 2), (2, 2),
             (2, 2), (2, 2), (2, 2), (2, 2),
@@ -70,10 +67,7 @@ class TestMissionFanCorner(EnvironmentTestCase):
 
         waypoints = list(self.mission.waypoints)
         self.assertEqual(waypoints, [
-            (1, 2), (2, 2), (1, 2), (0, 2),
-            (1, 2), (2, 2),
-            (2, 1), (2, 0), (2, 1), (2, 2),
-            (2, 1), (2, 0), (1, 0), (0, 0), (0, 1), (0, 2),
+            (1, 2), (2, 2), (2, 1), (2, 0), (1, 0), (0, 0), (0, 1), (0, 2),
             (1, 2), (2, 2), (2, 1), (2, 0),
             (2, 0), (2, 0), (2, 0), (2, 0),
             (1, 0), (0, 0), (0, 1), (0, 2),
@@ -100,10 +94,10 @@ class TestMissionFanCorner(EnvironmentTestCase):
         self.vehicle._check_state()
         self.assertEqual(self.vehicle._state.name, "move")
         self.assertEqual(self.vehicle._current_waypoint, 0)
-        self.assertEqual(self.vehicle.get_waypoint(), LocationLocal(1, 0, 0))
+        self.assertEqual(self.vehicle.get_waypoint(), LocationLocal(0, 1, 0))
         self.assertNotEqual(self._ttl_device.readline(), "")
 
-        self.vehicle._location = (1, 0)
+        self.vehicle._location = (0, 1)
         self.vehicle._state = Robot_State("intersection")
         with patch('sys.stdout'):
             self.mission.check_waypoint()
@@ -120,4 +114,4 @@ class TestMissionFanCorner(EnvironmentTestCase):
 
         self.vehicle._check_state()
         self.assertEqual(self.vehicle._current_waypoint, 2)
-        self.assertEqual(self.vehicle.get_waypoint(), LocationLocal(2, 0, 0))
+        self.assertEqual(self.vehicle.get_waypoint(), LocationLocal(0, 2, 0))

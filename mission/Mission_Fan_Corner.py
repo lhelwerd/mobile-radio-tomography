@@ -24,14 +24,8 @@ class Mission_Fan_Corner(Mission_Auto):
         if location.north == 0 and location.east == 0:
             self.id = 0
             self.waypoints = itertools.chain(
-                # 0: northward and southward straight line
-                wpzip(xrange(1, grid_size), [], fillvalue=0),
-                wpzip(xrange(size - 1, -1, -1), [], fillvalue=0),
                 # Corner rounds
                 # 1: eastward straight line (on south edge)
-                wpzip([], xrange(1, grid_size), fillvalue=0),
-                # 0: northward and southward straight line
-                wpzip([], xrange(size - 1, -1, -1), fillvalue=0),
                 wpzip([], xrange(1, grid_size), fillvalue=0),
                 # 2: northward straight line (on east edge)
                 wpzip(xrange(1, grid_size), [], fillvalue=size),
@@ -64,15 +58,9 @@ class Mission_Fan_Corner(Mission_Auto):
         elif location.north == 0 and location.east == size:
             self.id = 1
             self.waypoints = itertools.chain(
-                # 0: northward and southward straight line
-                wpzip(xrange(1, grid_size), [], fillvalue=size),
-                wpzip(xrange(size - 1, -1, -1), [], fillvalue=size),
                 # Corner rounds
                 # 1: northward straight line (on east edge)
                 wpzip(xrange(1, grid_size), [], fillvalue=size),
-                # 0: northward and southward straight line
-                wpzip([], xrange(size - 1, -1, -1), fillvalue=size),
-                wpzip([], xrange(1, grid_size), fillvalue=size),
                 # 2: westward straight line (on north edge)
                 wpzip([], xrange(size - 1, -1, -1), fillvalue=size),
                 # 3: southward straight line (on west edge)

@@ -148,6 +148,11 @@ class Mission_Fan_Corner(Mission_Auto):
         else:
             raise ValueError("Vehicle is incorrectly positioned at ({},{}), must be at (0,0) or (0,{})".format(location.north, location.east, size))
 
+        # Invert the mission
+        waypoints = list(self.waypoints)
+        final = waypoints[-1]
+        self.waypoints = itertools.chain(reversed(waypoints[:-1]), [final])
+
     def get_points(self):
         self.waypoints = list(self.waypoints)
         return [

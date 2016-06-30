@@ -23,7 +23,7 @@ class TestMissionFanCorner(EnvironmentTestCase):
         self.mission = Mission_Fan_Corner(self.environment, settings)
         self.rf_sensor = self.environment.get_rf_sensor()
         self.maxDiff = None
-        self.first_waypoints = [
+        self.first_waypoints = list(reversed([
             (1, 0), (2, 0), (3, 0),
             (3, 1), (3, 2), (3, 3), (2, 3), (1, 3), (0, 3),
             (1, 3), (2, 3), (3, 3),
@@ -37,9 +37,9 @@ class TestMissionFanCorner(EnvironmentTestCase):
             (0, 1), (0, 1), (0, 1), (0, 1), (0, 1), (0, 1), (0, 1),
             (0, 0), (1, 0), (2, 0), (3, 0), (3, 1),
             (3, 1),
-            (3, 0), (2, 0), (1, 0), (0, 0)
-        ]
-        self.second_waypoints = [
+            (3, 0), (2, 0), (1, 0)
+        ])) + [(0, 0)]
+        self.second_waypoints = list(reversed([
             (0, 2), (0, 1), (0, 0),
             (0, 0), (0, 0), (0, 0), (0, 0), (0, 0), (0, 0),
             (0, 1), (0, 2), (0, 3),
@@ -53,8 +53,8 @@ class TestMissionFanCorner(EnvironmentTestCase):
             (2, 0), (3, 0), (3, 1), (3, 2), (3, 3), (2, 3), (1, 3),
             (1, 3), (1, 3), (1, 3), (1, 3), (1, 3),
             (0, 3),
-            (0, 3), (0, 3), (0, 3), (0, 3)
-        ]
+            (0, 3), (0, 3), (0, 3)
+        ])) + [(0, 3)]
 
     def test_setup_robot_vehicle(self):
         # Check that the mission can only be run using a robot vehicle.

@@ -27,74 +27,78 @@ class Mission_Fan_Corner(Mission_Auto):
         if location.north == 0 and location.east == 0:
             self.id = 0
             self.waypoints = itertools.chain(
-                # 1: northward straight line (on west edge) for half the size
+                # 1: northward straight line (on west edge)
+                wpzip(xrange(1, grid_size), [], fillvalue=0),
+                # 2: eastward straight line (on north edge)
+                wpzip([], xrange(1, grid_size), fillvalue=size),
+                # 3: southward straight line (on east edge)
+                wpzip(xrange(size - 1, -1, -1), [], fillvalue=size),
+                # 4: westward straight line (on south edge)
+                wpzip([], xrange(size - 1, -1, -1), fillvalue=0),
+                # 5: northward straight line (on west edge) for half the size
                 wpzip(xrange(1, mid + 1), [], fillvalue=0),
-                # 2: fan beam at top side
+                # 6: fan beam at top side
                 itertools.chain(
                     wpzip(xrange(mid + 1, grid_size), [], fillvalue=0),
                     wpzip([], xrange(1, grid_size), fillvalue=size),
                     wpzip(xrange(size - 1, mid - 1, -1), [], fillvalue=size)
                 ),
-                # 3: wait at right edge for left side fan beam
+                # 7: wait at right edge for left side fan beam
                 wpzip(
                     itertools.repeat(mid, size + long_mid*2),
                     itertools.repeat(size, size + long_mid*2)
                 ),
-                # 4: fan beam at bottom side
+                # 8: fan beam at bottom side
                 itertools.chain(
                     wpzip(xrange(mid - 1, -1, -1), [], fillvalue=size),
                     wpzip([], xrange(size - 1, -1, -1), fillvalue=0),
                     wpzip(xrange(1, mid + 1), [], fillvalue=0)
                 ),
-                # 5: wait at left edge for right side fan beam
+                # 9: wait at left edge for right side fan beam
                 wpzip(
                     itertools.repeat(mid, size + mid*2),
                     itertools.repeat(0, size + mid*2)
                 ),
-                # 6: northward straight line (on west edge) for half the size
-                wpzip(xrange(mid + 1, grid_size), [], fillvalue=0),
-                # 7: eastward straight line (on north edge)
-                wpzip([], xrange(1, grid_size), fillvalue=size),
-                # 8: southward straight line (on east edge)
-                wpzip(xrange(size - 1, -1, -1), [], fillvalue=size),
-                # 9: westward straight line (on south edge)
-                wpzip([], xrange(size - 1, -1, -1), fillvalue=0)
+                # 10: southward straight line (on west edge) for half the size
+                wpzip(xrange(mid - 1, -1, -1), [], fillvalue=0)
             )
         elif location.north == 0 and location.east == size:
             self.id = 1
             self.waypoints = itertools.chain(
-                # 1: westward straight line (on south edge) for half the size
+                # 1: westward straight line (on south edge)
+                wpzip([], xrange(size - 1, -1, -1), fillvalue=0),
+                # 2: northward straight line (on west edge)
+                wpzip(xrange(1, grid_size), [], fillvalue=0),
+                # 3: eastward straight line (on north edge)
+                wpzip([], xrange(1, grid_size), fillvalue=size),
+                # 4: southward straight line (on east edge)
+                wpzip(xrange(size - 1, -1, -1), [], fillvalue=size),
+                # 5: westward straight line (on south edge) for half the size
                 wpzip([], xrange(size - 1, long_mid - 1, -1), fillvalue=0),
-                # 2: wait on bottom edge
+                # 6: wait on bottom edge
                 wpzip(
                     itertools.repeat(0, size + long_mid*2),
                     itertools.repeat(long_mid, size + long_mid*2)
                 ),
-                # 3: fan beam at left side
+                # 7: fan beam at left side
                 itertools.chain(
                     wpzip([], xrange(long_mid - 1, -1, -1), fillvalue=0),
                     wpzip(xrange(1, grid_size), [], fillvalue=0),
                     wpzip([], xrange(1, long_mid + 1), fillvalue=size)
                 ),
-                # 4: wait on top edge
+                # 8: wait on top edge
                 wpzip(
                     itertools.repeat(size, size + mid*2),
                     itertools.repeat(long_mid, size + mid*2)
                 ),
-                # 5: fan beam at right side
+                # 9: fan beam at right side
                 itertools.chain(
                     wpzip([], xrange(long_mid + 1, grid_size), fillvalue=size),
                     wpzip(xrange(size - 1, -1, -1), [], fillvalue=size),
                     wpzip([], xrange(size - 1, long_mid - 1, -1), fillvalue=0)
                 ),
-                # 6: westward straight line (on south edge) for half the size
-                wpzip([], xrange(long_mid - 1, -1, -1), fillvalue=0),
-                # 7: northward straight line (on west edge)
-                wpzip(xrange(1, grid_size), [], fillvalue=0),
-                # 8: eastward straight line (on north edge)
-                wpzip([], xrange(1, grid_size), fillvalue=size),
-                # 9: southward straight line (on east edge)
-                wpzip(xrange(size - 1, -1, -1), [], fillvalue=size)
+                # 10: eastward straight line (on south edge) for half the size
+                wpzip([], xrange(long_mid + 1, grid_size), fillvalue=0)
             )
         else:
             raise ValueError("Vehicle is incorrectly positioned at ({},{}), must be at (0,0) or (0,{})".format(location.north, location.east, size))

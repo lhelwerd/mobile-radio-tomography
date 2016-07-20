@@ -6,7 +6,9 @@ from settings import SettingsTestCase
 
 class TestPlanningGreedyAssignment(SettingsTestCase):
     def setUp(self):
-        self.arguments = Arguments("settings.json", [])
+        self.arguments = Arguments("settings.json", [
+            "--network-padding", "5", "5"
+        ])
         self.geometry = Geometry_Grid()
         self.assigner = Greedy_Assignment(self.arguments, self.geometry)
 
@@ -22,7 +24,7 @@ class TestPlanningGreedyAssignment(SettingsTestCase):
                               [[0, 0], [1, 6]],
                               [[4, 8], [9, 1]]])
 
-        assignment = self.assigner.assign(positions)[0]
+        assignment, distance = self.assigner.assign(positions)
 
         # Input is left untouched.
         self.assertEqual(positions.shape, (4, 2, 2))
@@ -32,3 +34,14 @@ class TestPlanningGreedyAssignment(SettingsTestCase):
             1: [[0, 0, 0, 2], [0, 1, 0, 2], [3, 0, 0, 2], [9, 1, 0, 2]],
             2: [[1, 6, 0, 1], [2, 9, 0, 1], [5, 6, 0, 1], [4, 8, 0, 1]]
         })
+
+        # The assignment is valid, i.e., the distance is not infinite due to 
+        # conflicting paths
+        self.assertNotEqual(distance, np.inf)
+
+    def test_assign_conflict(self):
+        positions = np.array([[[0, 0], [0, 0]]])
+
+        # The distance of a conflicting assignment is set to infinity.
+        distance = self.assigner.assign(positions)[1]
+        self.assertEqual(distance, np.inf)

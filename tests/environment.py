@@ -1,5 +1,5 @@
 import math
-from dronekit import LocationLocal, LocationGlobal
+from dronekit import LocationLocal, LocationGlobal, LocationGlobalRelative
 from mock import patch, MagicMock, PropertyMock
 from ..bench.Method_Coverage import covers
 from ..core.Import_Manager import Import_Manager
@@ -275,6 +275,34 @@ class TestEnvironment(EnvironmentTestCase):
             self.assertEqual(raw_location, (loc.north, loc.east))
             self.assertEqual(waypoint_index, 0)
 
+    def test_get_vehicle_locations(self):
+        rf_sensor = self.environment.get_rf_sensor()
+        other_id = rf_sensor.id + 1
+        vehicle = self.environment.vehicle
+
+        # If no measurements have been received yet, then only the current 
+        # vehicle is provided.
+        locations = self.environment.get_vehicle_locations()
+        self.assertEqual(len(locations), 1)
+        self.assertEqual(locations[rf_sensor.id], vehicle.location)
+
+        self.assertTrue(self.environment.location_valid(other_valid=True,
+                                                        other_id=other_id,
+                                                        other_index=0,
+                                                        other_location=(5, 10)))
+
+        locations = self.environment.get_vehicle_locations()
+        self.assertEqual(len(locations), 2)
+        self.assertEqual(locations[rf_sensor.id], vehicle.location)
+        self.assertEqual(locations[other_id], LocationGlobalRelative(5, 10, 0))
+
+        # If the RF sensor is disabled, then only the current vehicle is 
+        # provided using a fake sensor ID.
+        self.environment._rf_sensor = None
+        locations = self.environment.get_vehicle_locations()
+        self.assertEqual(len(locations), 1)
+        self.assertEqual(locations[1], vehicle.location)
+
     @covers([
         "location_valid", "is_measurement_valid", "invalidate_measurement"
     ])
@@ -293,14 +321,16 @@ class TestEnvironment(EnvironmentTestCase):
 
         self.assertTrue(self.environment.location_valid(other_valid=True,
                                                         other_id=other_id,
-                                                        other_index=0))
+                                                        other_index=0,
+                                                        other_location=(5, 10)))
         self.assertFalse(self.environment.is_measurement_valid())
         self.assertEqual(self.environment._valid_measurements,
                          {rf_sensor.id: 0, other_id: 0})
 
         self.assertTrue(self.environment.location_valid(other_valid=True,
                                                         other_id=other_id + 1,
-                                                        other_index=0))
+                                                        other_index=0,
+                                                        other_location=(3, 2)))
         self.assertTrue(self.environment.is_measurement_valid())
 
         # Requiring a specific set of sensors
@@ -310,7 +340,8 @@ class TestEnvironment(EnvironmentTestCase):
 
         self.assertTrue(self.environment.location_valid(other_valid=True,
                                                         other_id=other_id,
-                                                        other_index=0))
+                                                        other_index=0,
+                                                        other_location=(7, 2)))
         self.assertTrue(self.environment.is_measurement_valid())
 
         # Check that receiving valid measurements in other orders works as 
@@ -318,10 +349,12 @@ class TestEnvironment(EnvironmentTestCase):
         self.environment.invalidate_measurement()
         self.assertTrue(self.environment.location_valid(other_valid=True,
                                                         other_id=other_id,
-                                                        other_index=0))
+                                                        other_index=0,
+                                                        other_location=(9, 10)))
         self.assertTrue(self.environment.location_valid(other_valid=True,
                                                         other_id=other_id + 1,
-                                                        other_index=0))
+                                                        other_index=0,
+                                                        other_location=(0, 2)))
 
         self.assertFalse(self.environment.is_measurement_valid())
 
@@ -330,7 +363,8 @@ class TestEnvironment(EnvironmentTestCase):
 
         self.assertTrue(self.environment.location_valid(other_valid=True,
                                                         other_id=other_id,
-                                                        other_index=0))
+                                                        other_index=0,
+                                                        other_location=(4, 12)))
         self.assertTrue(self.environment.is_measurement_valid())
 
     def test_get_distance(self):

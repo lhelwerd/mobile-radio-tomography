@@ -180,8 +180,11 @@ class AStar(object):
                     break
 
                 # Check whether the neighbor index is inside the region of 
-                # influence of any other object.
-                if close[neighbor_idx]:
+                # influence of any other object. Only do so when we are not 
+                # leaving a region of influence around the start location, 
+                # since we should be able to leave this region if it exists.
+                if close[neighbor_idx] and \
+                   (g[neighbor_idx] >= closeness or not close[start_idx]):
                     continue
 
                 # Calculate the new tentative distances to the point

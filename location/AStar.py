@@ -110,9 +110,6 @@ class AStar(object):
             start_idx = self._memory_map.get_index(start)
             goal_idx = self._memory_map.get_index(goal)
 
-            self._locations[start_idx] = start
-            self._locations[goal_idx] = goal
-
         close = self._get_close_map(closeness)
 
         if start_idx == goal_idx:
@@ -183,8 +180,7 @@ class AStar(object):
                 # influence of any other object. Only do so when we are not 
                 # leaving a region of influence around the start location, 
                 # since we should be able to leave this region if it exists.
-                if close[neighbor_idx] and \
-                   (g[neighbor_idx] >= closeness or not close[start_idx]):
+                if close[neighbor_idx] and (not close[start_idx] or g[current_idx] >= closeness):
                     continue
 
                 # Calculate the new tentative distances to the point
@@ -242,8 +238,8 @@ class AStar(object):
         # spread out coordinates. This saves some Location object overhead, as 
         # well as some geometry internal call overhead.
         if self._norm:
-            return self._norm(start_idx[0] - goal_idx[0],
-                              start_idx[1] - goal_idx[1])
+            return self._norm((start_idx[0] - goal_idx[0]) / self._resolution,
+                              (start_idx[1] - goal_idx[1]) / self._resolution)
 
         start = self._get_location(start_idx)
         goal = self._get_location(goal_idx)

@@ -108,6 +108,16 @@ class MAVLink_Vehicle(Vehicle):
     def count_waypoints(self):
         return self.commands.count
 
+    @property
+    def target_location(self):
+        # By default, provide the waypoint location if possible, otherwise fall 
+        # back to the current location.
+        waypoint = self.get_waypoint()
+        if waypoint is not None:
+            return waypoint
+
+        return self.location
+
     def is_current_location_valid(self):
         location = self._geometry.get_location_frame(self.location)
         return self.is_location_valid(location)

@@ -306,6 +306,30 @@ class Vehicle(Threadable):
         raise NotImplementedError("Subclasses must implement `location` property")
 
     @property
+    def target_location(self):
+        """
+        Retrieve the location that the vehicle currently attempts to reach.
+
+        The provided target location should be an indication of where the
+        vehicle starts doing something different from what it is currently
+        doing, such as turning or otherwise actively changing its attitude.
+        This location may differ from the next waypoint location, as it may
+        be an interstitial location. In most cases, this means the vehicle is
+        moving toward this location in a somewhat straight line from the
+        location it was previously situated.
+
+        This property should always update when the vehicle is following
+        waypoints registered with `add_waypoint`. Depending on the vehicle and
+        its mode, the target location may not update at all during movement,
+        and thus remain providing the current or starting location.
+
+        This property returns the location one of the `LocationLocal`,
+        `LocationGlobalRelative` or `LocationGlobal` objects.
+        """
+
+        raise NotImplementedError("Subclasses must implement `target_location` property")
+
+    @property
     def speed(self):
         """
         Get the speed of the vehicle in m/s relative to its current attitude.

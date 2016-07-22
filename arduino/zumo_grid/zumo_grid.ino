@@ -379,6 +379,13 @@ void goto_dir(char dir, int count) {
   if (dir == 'O') {
     return;
   }
+
+  softSerial.print("GTAR ");
+  softSerial.print(dir);
+  softSerial.print(" ");
+  softSerial.print(count);
+  softSerial.print("\n");
+
   turn_to(dir);
   for (int i = 0; i < count; i++) {
     followSegment();

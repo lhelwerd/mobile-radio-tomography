@@ -71,17 +71,17 @@ class Robot_Vehicle_Arduino_Full(Robot_Vehicle_Arduino):
 
         raise ValueError("Invalid direction: {}".format(direction))
 
-    def _get_next_location(self):
-        if self._direction == Line_Follower_Direction.UP:
-            return (self._location[0] + 1, self._location[1])
-        if self._direction == Line_Follower_Direction.RIGHT:
-            return (self._location[0], self._location[1] + 1)
-        if self._direction == Line_Follower_Direction.DOWN:
-            return (self._location[0] - 1, self._location[1])
-        if self._direction == Line_Follower_Direction.LEFT:
-            return (self._location[0], self._location[1] - 1)
+    def _get_next_location(self, direction, diff=1):
+        if direction == Line_Follower_Direction.UP:
+            return (self._location[0] + diff, self._location[1])
+        if direction == Line_Follower_Direction.RIGHT:
+            return (self._location[0], self._location[1] + diff)
+        if direction == Line_Follower_Direction.DOWN:
+            return (self._location[0] - diff, self._location[1])
+        if direction == Line_Follower_Direction.LEFT:
+            return (self._location[0], self._location[1] - diff)
 
-        raise ValueError("Invalid direction: {}".format(self._direction))
+        raise ValueError("Invalid direction: {}".format(direction))
 
     def _check_state(self):
         self._check_intersection()
@@ -101,14 +101,18 @@ class Robot_Vehicle_Arduino_Full(Robot_Vehicle_Arduino):
         try:
             if parts[0] == "LOCA": # At grid intersection location
                 self._location = (int(parts[1]), int(parts[2]))
+                self._target_location = self._location
                 self._direction = self._get_direction(parts[3])
                 self._state = Robot_State("intersection")
             elif parts[0] == "GDIR": # Direction update
                 self._direction = self._get_direction(parts[1])
             elif parts[0] == "ACKG": # "GOTO" acknowledgement
                 self._state = Robot_State("move")
-            elif parts[0] == "PASS":
-                self._location = self._get_next_location()
+            elif parts[0] == "PASS": # Pass an intersection, location update
+                self._location = self._get_next_location(self._direction)
+            elif parts[0] == "GTAR":
+                direction = self._get_direction(parts[1])
+                self._target_location = self._get_next_location(direction, diff=int(parts[2]))
         except IndexError:
             # Ignore incomplete messages.
             return

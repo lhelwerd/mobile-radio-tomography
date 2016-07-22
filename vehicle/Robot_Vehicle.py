@@ -61,7 +61,16 @@ class Robot_Vehicle(Vehicle):
         # placed at the intersection corresponding to these coordinates to 
         # begin with.
         self._home_location = tuple(self.settings.get("home_location"))
+
+        # The current location of the robot vehicle.
         self._location = self._home_location
+
+        # The location that the robot is current moving towards. This can be 
+        # a waypoint location or a location at which the robot needs to make 
+        # a turn, but it can also be the current location if it is not moving 
+        # toward anything specific.
+        self._target_location = self._location
+
         # The starting direction of the robot. The robot should be aligned with 
         # this direction to begin with.
         self._direction = self.settings.get("home_direction")
@@ -314,6 +323,11 @@ class Robot_Vehicle(Vehicle):
         return LocationLocal(self._location[0], self._location[1], 0.0)
 
     @property
+    def target_location(self):
+        return LocationLocal(self._target_location[0],
+                             self._target_location[1], 0.0)
+
+    @property
     def speed(self):
         return self._move_speed
 
@@ -460,9 +474,13 @@ class Robot_Vehicle(Vehicle):
 
     def _goto_waypoint(self, next_waypoint):
         if next_waypoint is None:
+            self._target_location = self._location
             return True
 
         next_direction = self._next_direction(next_waypoint)
+        self._target_location = self._next_location(next_waypoint,
+                                                    next_direction)
+
         if next_direction == self._direction:
             # Start moving in the given direction
             self._state = Robot_State("move")
@@ -500,6 +518,12 @@ class Robot_Vehicle(Vehicle):
         # No need to change direction if the difference is 0 for both cardinal 
         # directions.
         return self._direction
+
+    def _next_location(self, waypoint, direction):
+        if direction == Line_Follower_Direction.UP or direction == Line_Follower_Direction.DOWN:
+            return (waypoint[0], self._location[1])
+
+        return (self._location[0], waypoint[1])
 
     def _is_moving(self):
         return self._armed and self._state.name == "move"

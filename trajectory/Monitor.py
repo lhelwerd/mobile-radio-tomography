@@ -20,7 +20,7 @@ class Monitor(object):
         self.sensors = self.environment.get_distance_sensors()
         self.rf_sensor = self.environment.get_rf_sensor()
 
-        self.colors = ["red", "purple", "black"]
+        self.colors = self.settings.get("plot_sensor_colors")
 
         self.memory_map = None
         self.plot = None
@@ -115,6 +115,14 @@ class Monitor(object):
             self.rf_sensor.start()
 
     def pause(self):
+        """
+        Pause or unpause the mission.
+
+        If the mission is currently pause, then this restarts the mission in the
+        correct mode. Otherwise, the vehicle is paused and the RF sensor is put
+        in its passive mode.
+        """
+
         if self._paused:
             self.start()
 

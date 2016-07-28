@@ -1,10 +1,8 @@
 # Core imports
 import math
 
-# Library imports
-from dronekit import LocationLocal
-
 # Package imports
+from Location_Proxy import Location_Proxy
 from ..core.Import_Manager import Import_Manager
 from ..core.Thread_Manager import Thread_Manager
 from ..core.USB_Manager import USB_Manager
@@ -12,9 +10,10 @@ from ..trajectory.Servo import Servo
 from ..vehicle.Vehicle import Vehicle
 from ..zigbee.Settings_Receiver import Settings_Receiver
 
-class Environment(object):
+class Environment(Location_Proxy):
     """
-    Environment class for interfacing the vehicle with various sensors and positioning information.
+    Environment class for interfacing the vehicle with various sensors and
+    positioning information.
     """
 
     # The distance sensor class name, i.e., "Distance_Sensor_Physical" or 
@@ -86,8 +85,9 @@ class Environment(object):
 
     def __init__(self, vehicle, geometry, arguments,
                  import_manager, thread_manager, usb_manager):
+        super(Environment, self).__init__(geometry)
+
         self.vehicle = vehicle
-        self.geometry = geometry
 
         self.arguments = arguments
         self.settings = self.arguments.get_settings("environment")
@@ -110,6 +110,7 @@ class Environment(object):
         self._setup_rf_sensor()
 
         self._valid_measurements = {}
+        self._vehicle_locations = {}
         self._is_measurement_valid = False
         self._required_sensors = set()
         self.invalidate_measurement()
@@ -132,7 +133,7 @@ class Environment(object):
                 servo.set_current_pwm(servo_pwms[pin])
 
     def on_home_location(self, vehicle, attribute, home_location):
-        self.geometry.set_home_location(home_location)
+        self._geometry.set_home_location(home_location)
 
     def _setup_rf_sensor(self):
         rf_sensor_class = self.settings.get("rf_sensor_class")
@@ -149,7 +150,7 @@ class Environment(object):
         return self.vehicle
 
     def get_geometry(self):
-        return self.geometry
+        return self._geometry
 
     def get_arguments(self):
         return self.arguments
@@ -252,35 +253,39 @@ class Environment(object):
 
         return []
 
-    def get_location(self, north=0, east=0, alt=0):
-        """
-        Retrieve the location of the vehicle, or a point relative to the location of the vehicle given in meters.
-        """
-
-        return self.geometry.get_location_meters(self.vehicle.location, north, east, alt)
+    @property
+    def location(self):
+        return self.vehicle.location
 
     def get_raw_location(self):
         """
         Callback method for the location callback of the `RF_Sensor`.
 
-        The returned values are a tuple of vehicle coordinates, and the current
-        waypoint index.
+        The returned values are a tuple of coordinate values for the current
+        location of the vehicle (excluding the altitude component), and the
+        current waypoint index.
         """
 
-        location = self.get_location()
+        coords = self.geometry.get_coordinates(self.vehicle.location)[:2]
         waypoint_index = self.vehicle.get_next_waypoint()
-        if isinstance(location, LocationLocal):
-            return (location.north, location.east), waypoint_index
+        return coords, waypoint_index
 
-        return (location.lat, location.lon), waypoint_index
+    def get_vehicle_locations(self):
+        if self._rf_sensor is None:
+            return {1: self.vehicle.location}
 
-    def location_valid(self, other_valid=None, other_id=None, other_index=None):
+        self._vehicle_locations[self._rf_sensor.id] = self.vehicle.location
+        return self._vehicle_locations
+
+    def location_valid(self, other_valid=None, other_id=None, other_index=None,
+                       other_location=None):
         """
         Callback method for the valid callback of the `RF_Sensor`.
 
         The argument `other_valid`, when given, indicates whether the location
         of another vehicle is also valid. This vehicle is identified by its RF
-        sensor ID `other_id`, and is at waypoint index `other_index`. These must
+        sensor ID `other_id`, and is at the coordinate tuple `other_location`
+        for the purposes of reaching waypoint index `other_index`. These must
         also be given in this case.
 
         This is used to determine whether the measurement is valid on both ends
@@ -294,22 +299,27 @@ class Environment(object):
         index = self.vehicle.get_next_waypoint()
 
         if other_id is None:
-            # We are going to send an RSSI broadcast packet, so we update 
-            # whether the current vehicle's location is valid.
+            # No `other_id` is provided. This means that we are going to send 
+            # an RSSI broadcast packet, so we update whether the current 
+            # vehicle's location is valid.
             if self._rf_sensor is not None and location_valid:
                 self._valid_measurements[self._rf_sensor.id] = index
-        elif other_valid:
+        else:
             # We are going to send a ground station packet, so we update 
-            # whether the other vehicle's location is valid, and check whether 
-            # all measurements will now be valid.
-            self._valid_measurements[other_id] = other_index
+            # whether the other vehicle's location is valid. If it is, we check 
+            # whether all measurements will now be valid. That means that once 
+            # the ground station packet is sent with all valid measurements, we 
+            # have collected enough measurements at this location.
+            if other_valid:
+                self._valid_measurements[other_id] = other_index
 
-            if not self._is_valid(self._rf_sensor.id, index):
-                self._is_measurement_valid = False
-            else:
                 self._is_measurement_valid = all(
                     self._is_valid(id, index) for id in self._required_sensors
                 )
+
+            if other_location is not None:
+                location = self._geometry.make_location(*other_location)
+                self._vehicle_locations[other_id] = location
 
         return location_valid
 
@@ -351,14 +361,11 @@ class Environment(object):
         if required_sensors is None:
             required_sensors = range(1, self._rf_sensor.number_of_sensors + 1)
 
+        # Register the sensors that we need to collect measurements from. The 
+        # current vehicle is always required regardless of the provided 
+        # `required_sensors`, i.e., our own location must be valid.
         self._required_sensors = set(required_sensors)
-
-    def get_distance(self, location):
-        """
-        Get the distance to the `location` from the vehicle's location.
-        """
-
-        return self.geometry.get_distance_meters(self.vehicle.location, location)
+        self._required_sensors.add(self._rf_sensor.id)
 
     def get_yaw(self):
         """
@@ -393,7 +400,7 @@ class Environment(object):
         the angle in radians.
         """
 
-        return self.geometry.bearing_to_angle(self.get_yaw())
+        return self._geometry.bearing_to_angle(self.get_yaw())
 
     def get_pitch(self):
         """

@@ -135,6 +135,25 @@ class TestVehicleMAVLinkVehicle(VehicleTestCase):
         commands_mock.return_value.configure_mock(count=2)
         self.assertEqual(self.vehicle.count_waypoints(), 2)
 
+    @patch.object(MAVLink_Vehicle, "get_waypoint")
+    @patch.object(MAVLink_Vehicle, "location", new_callable=PropertyMock)
+    def test_target_location(self, location_mock, get_waypoint_mock):
+        target_location = LocationGlobalRelative(5.6, 7.8, 9.0)
+        get_waypoint_mock.configure_mock(return_value=target_location)
+
+        self.assertEqual(self.vehicle.target_location, target_location)
+        get_waypoint_mock.assert_called_once_with()
+        location_mock.assert_not_called()
+
+        location = LocationGlobalRelative(1.2, 3.4, 5.6)
+        get_waypoint_mock.reset_mock()
+        get_waypoint_mock.configure_mock(return_value=None)
+        location_mock.configure_mock(return_value=location)
+
+        self.assertEqual(self.vehicle.target_location, location)
+        get_waypoint_mock.assert_called_once_with()
+        location_mock.assert_called_once_with()
+
     @patch.object(MAVLink_Vehicle, "location", new_callable=PropertyMock)
     def test_is_current_location_valid(self, location_mock):
         loc = LocationLocal(1, 2, 3)

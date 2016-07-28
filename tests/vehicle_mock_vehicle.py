@@ -275,6 +275,7 @@ class TestVehicleMockVehicle(VehicleTestCase):
                       0, 0, 0, 0)
         self.vehicle._parse_command(cmd)
         self.assertFalse(self.vehicle._target_location)
+        self.assertEqual(self.vehicle.target_location, self.vehicle.location)
 
         # Takeoff commands set a target takeoff location, unless the vehicle 
         # has already taken off.
@@ -304,20 +305,24 @@ class TestVehicleMockVehicle(VehicleTestCase):
         # Changing location has no effect when the vehicle has not taken off.
         self.vehicle.set_target_location(location=loc)
         self.assertIsNone(self.vehicle._target_location)
+        self.assertEqual(self.vehicle.target_location, self.vehicle.location)
 
         # Takeoff locations work as expected.
+        takeoff_location = LocationLocal(0.0, 0.0, -7.8)
         self.vehicle.set_target_location(alt=7.8, takeoff=True)
         self.assertTrue(self.vehicle._takeoff)
-        self.assertEqual(self.vehicle._target_location,
-                         LocationLocal(0.0, 0.0, -7.8))
+        self.assertEqual(self.vehicle._target_location, takeoff_location)
+        self.assertEqual(self.vehicle.target_location, takeoff_location)
 
+        default_location = LocationLocal(0.0, 0.0, 0.0)
         self.vehicle.set_target_location()
-        self.assertEqual(self.vehicle._target_location,
-                         LocationLocal(0.0, 0.0, 0.0))
+        self.assertEqual(self.vehicle._target_location, default_location)
+        self.assertEqual(self.vehicle.target_location, default_location)
 
         with patch.object(self.vehicle, "_geometry", spec=Geometry_Spherical) as geometry_mock:
             self.vehicle.set_target_location(location=loc)
             self.assertEqual(self.vehicle._target_location, loc)
+            self.assertEqual(self.vehicle.target_location, loc)
             geometry_mock.get_angle.assert_called_once_with(self.vehicle.location, loc)
             self.assertEqual(geometry_mock.angle_to_bearing.call_count, 1)
             self.assertEqual(self.vehicle._target_attitude._yaw,
@@ -327,6 +332,7 @@ class TestVehicleMockVehicle(VehicleTestCase):
         self.vehicle.set_target_location(alt=6.5, takeoff=True)
         self.vehicle.clear_target_location()
         self.assertIsNone(self.vehicle._target_location)
+        self.assertEqual(self.vehicle.target_location, self.vehicle.location)
 
     def test_pause(self):
         with patch.object(Mock_Vehicle, "_get_delta_time") as delta_mock:
@@ -425,18 +431,19 @@ class TestVehicleMockVehicle(VehicleTestCase):
                           2.0, 20.0, 10.0)
             self.vehicle.commands.add(cmd)
 
+            first_location = LocationLocal(2.0, 0.0, 0.0)
+            second_location = LocationLocal(2.0, 10.0, 0.0)
+
             # First call to update_location: command parsing
             delta_mock.reset_mock()
             self.vehicle.update_location()
             self.assertEqual(self.vehicle.commands.next, 0)
-            self.assertEqual(self.vehicle._target_location,
-                             LocationLocal(2.0, 0.0, 0.0))
+            self.assertEqual(self.vehicle._target_location, first_location)
             delta_mock.assert_called_once_with()
 
             # Second call (via location): reached first location
             delta_mock.reset_mock()
-            self.assertEqual(self.vehicle.location.local_frame,
-                             LocationLocal(2.0, 0.0, 0.0))
+            self.assertEqual(self.vehicle.location.local_frame, first_location)
             delta_mock.assert_called_once_with()
 
             # Third call (via next): target location is reset
@@ -449,8 +456,7 @@ class TestVehicleMockVehicle(VehicleTestCase):
             delta_mock.reset_mock()
             self.vehicle.update_location()
             self.assertEqual(self.vehicle.commands.next, 1)
-            self.assertEqual(self.vehicle._target_location,
-                             LocationLocal(2.0, 10.0, 0.0))
+            self.assertEqual(self.vehicle._target_location, second_location)
             delta_mock.assert_called_once_with()
 
             # Fifth call (via attitude): rotating attitude
@@ -468,8 +474,7 @@ class TestVehicleMockVehicle(VehicleTestCase):
 
             # Reached second location
             delta_mock.reset_mock()
-            self.assertEqual(self.vehicle.location.local_frame,
-                             LocationLocal(2.0, 10.0, 0.0))
+            self.assertEqual(self.vehicle.location.local_frame, second_location)
             delta_mock.assert_called_once_with()
 
             # Going to third location and reaching it at correct altitude

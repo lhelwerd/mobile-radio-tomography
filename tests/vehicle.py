@@ -115,6 +115,8 @@ class TestVehicle(VehicleTestCase):
             self.vehicle.simple_goto(LocationGlobal(4.0, 5.0, 6.0))
         with self.assertRaises(NotImplementedError):
             dummy = self.vehicle.location
+        with self.assertRaises(NotImplementedError):
+            dummy = self.vehicle.target_location
 
         self.vehicle.speed = 3.0
         self.vehicle.velocity = [1.2, 3.4, 5.6]

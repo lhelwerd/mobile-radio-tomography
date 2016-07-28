@@ -512,6 +512,13 @@ class Mock_Vehicle(MAVLink_Vehicle):
             fn(self, name, msg)
 
     @property
+    def target_location(self):
+        if not self._target_location:
+            return self.location
+
+        return self._target_location
+
+    @property
     def attitude(self):
         self.update_location()
         return self._attitude

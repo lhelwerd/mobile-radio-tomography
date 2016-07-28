@@ -202,7 +202,7 @@ class TestVehicleRobotVehicle(RobotVehicleTestCase):
                 self._line_follower.deactivate.assert_called_once_with()
 
     @patch.object(Robot_Vehicle, 'set_speeds')
-    @covers("is_current_location_valid")
+    @covers(["is_current_location_valid", "target_location"])
     def test_check_state_default(self, set_speeds_mock):
         self.vehicle.mode = VehicleMode("GUIDED")
         self.vehicle.speed = 0.3
@@ -213,9 +213,14 @@ class TestVehicleRobotVehicle(RobotVehicleTestCase):
         self.assertEqual(self.vehicle._waypoints, [])
         self.assertFalse(self.vehicle.is_current_location_valid())
         self.assertEqual(self.vehicle.attitude.yaw, 0.0)
+        self.assertEqual(self.vehicle.location, self.vehicle.home_location)
+        self.assertEqual(self.vehicle.target_location, self.vehicle.location)
 
     @patch.object(Robot_Vehicle, 'set_speeds')
-    @covers(["is_current_location_valid", "line_follower_callback", "location"])
+    @covers([
+        "is_current_location_valid", "line_follower_callback", "location",
+        "target_location"
+    ])
     def test_check_state_diverge(self, set_speeds_mock):
         self.vehicle.mode = VehicleMode("GUIDED")
         self.vehicle.speed = 0.3
@@ -232,6 +237,7 @@ class TestVehicleRobotVehicle(RobotVehicleTestCase):
         set_speeds_mock.assert_called_once_with(0.3, 0.3)
         self.assertTrue(self.vehicle._is_moving())
         self.assertFalse(self.vehicle.is_current_location_valid())
+        self.assertEqual(self.vehicle.target_location, waypoint)
 
         # Test diverged state
         set_speeds_mock.reset_mock()

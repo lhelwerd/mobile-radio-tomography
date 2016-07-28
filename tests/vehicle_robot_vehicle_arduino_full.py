@@ -109,18 +109,18 @@ class TestVehicleRobotVehicleArduinoFull(RobotVehicleTestCase):
 
     def test_get_next_location(self):
         cases = [
-            (Line_Follower_Direction.UP, (4, 4)),
-            (Line_Follower_Direction.RIGHT, (3, 5)),
-            (Line_Follower_Direction.DOWN, (2, 4)),
-            (Line_Follower_Direction.LEFT, (3, 3))
+            (Line_Follower_Direction.UP, 1, (4, 4)),
+            (Line_Follower_Direction.RIGHT, 1, (3, 5)),
+            (Line_Follower_Direction.DOWN, 1, (2, 4)),
+            (Line_Follower_Direction.LEFT, 1, (3, 3)),
+            (Line_Follower_Direction.UP, 10, (13, 4))
         ]
-        for direction, expected in cases:
-            self.vehicle._direction = direction
-            self.assertEqual(self.vehicle._get_next_location(), expected)
+        for direction, diff, expected in cases:
+            self.assertEqual(self.vehicle._get_next_location(direction, diff),
+                             expected)
 
         with self.assertRaises(ValueError):
-            self.vehicle._direction = 4
-            self.vehicle._get_next_location()
+            self.vehicle._get_next_location(4)
 
     def test_check_state(self):
         # `_check_state` always calls `Robot_Vehicle._check_intersection`.
@@ -155,15 +155,24 @@ class TestVehicleRobotVehicleArduinoFull(RobotVehicleTestCase):
             self.vehicle.activate()
 
         with patch("sys.stdout"):
+            location = LocationLocal(2.0, 3.0, 0.0)
+            target_location = LocationLocal(4.0, 3.0, 0.0)
+
             # The location and direction states are updated based on the 
             # Arduino "location" message.
             self._ttl_device.write("LOCA 2 3 E\n")
             self.vehicle._read_serial_message()
-            self.assertEqual(self.vehicle.location,
-                             LocationLocal(2.0, 3.0, 0.0))
+
+            self.assertEqual(self.vehicle.location, location)
+            self.assertEqual(self.vehicle.target_location, location)
             self.assertEqual(self.vehicle._direction,
                              Line_Follower_Direction.RIGHT)
             self.assertEqual(self.vehicle._state.name, "intersection")
+
+            # The target location is updated based on the Arduin "goto target".
+            self._ttl_device.write("GTAR N 2\n")
+            self.vehicle._read_serial_message()
+            self.assertEqual(self.vehicle.target_location, target_location)
 
             # The direction is updated based on the Arduino "goto direction".
             self._ttl_device.write("GDIR N\n")
@@ -173,7 +182,7 @@ class TestVehicleRobotVehicleArduinoFull(RobotVehicleTestCase):
 
             # The vehicle state is updated based on the Arduino 
             # "acknowledgement goto" message.
-            self.vehicle.add_waypoint(LocationLocal(4.0, 3.0, 0.0))
+            self.vehicle.add_waypoint(target_location)
             self.vehicle.set_next_waypoint()
             self._ttl_device.write("ACKG 4 3\n")
             self.vehicle._read_serial_message()
@@ -192,8 +201,7 @@ class TestVehicleRobotVehicleArduinoFull(RobotVehicleTestCase):
             # from the Arduino.
             self._ttl_device.write("PASS 1\n")
             self.vehicle._read_serial_message()
-            self.assertEqual(self.vehicle.location,
-                             LocationLocal(4.0, 3.0, 0.0))
+            self.assertEqual(self.vehicle.location, target_location)
             self.assertFalse(self.vehicle.is_current_location_valid())
 
             self._ttl_device.write("LOCA 4 3 N\n")

@@ -778,6 +778,22 @@
             }
         }
     },
+    "planning_experiments": {
+        "name": "Planning problem: experiments",
+        "settings": {
+            "number_of_processes": {
+                "help": "Number of concurrent processes that run with the same parameters",
+                "type": "int",
+                "min": 1,
+                "default": 5
+            },
+            "pass_environment": {
+                "help": "Whether to pass environment variables and Python flags to the processes",
+                "type": "bool",
+                "default": true
+            }
+        }
+    },
     "reconstruction": {
         "name": "Reconstruction",
         "settings": {

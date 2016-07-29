@@ -162,6 +162,14 @@ class TestSettings(SettingsTestCase):
         self.assertTrue(parent_settings.is_default("baz"))
         self.assertFalse(child_settings.is_default("baz"))
 
+    def test_is_default_tuple(self):
+        # The tuple type is correctly imported from the JSON defaults so that 
+        # it is a tuple instead of a list.
+        child_settings = Settings("tests/settings/empty.json", "child",
+                                  defaults_file="tests/settings/defaults.json")
+        child_settings.set("coordinate", (4, 2))
+        self.assertTrue(child_settings.is_default("coordinate"))
+
     def test_is_default_nonexistent(self):
         settings = Settings("tests/settings/settings.json", "foo",
                             defaults_file="tests/settings/defaults.json")

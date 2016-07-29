@@ -41,6 +41,11 @@ class Settings(object):
         self.settings = defaults[self._component_name]["settings"]
         self._name = defaults[self._component_name]["name"]
         for key, data in self.settings.iteritems():
+            # Since JSON cannot store tuples specifically, but only has arrays, 
+            # convert the list to a tuple type here as a single exception.
+            if data["type"] == "tuple":
+                data["default"] = tuple(data["default"])
+
             if key in settings:
                 data["value"] = settings[key]
             else:

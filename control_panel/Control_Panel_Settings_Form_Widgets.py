@@ -5,13 +5,14 @@ from PyQt4 import QtCore, QtGui
 from Control_Panel_Widgets import QLineEditValidated, QLineEditToolButton
 
 class FormWidget(QtGui.QWidget):
-    def __init__(self, form, key, info, settings, horizontal=False, *a, **kw):
+    def __init__(self, form, key, info, settings, horizontal=False, sub=False, *a, **kw):
         super(FormWidget, self).__init__(*a, **kw)
         self.form = form
         self.key = key
         self.info = info
         self.settings = settings
         self.horizontal = horizontal
+        self.sub = sub
 
         reset_action = QtGui.QAction("Reset to current value", self)
         reset_action.triggered.connect(self.reset_value)
@@ -127,7 +128,7 @@ class BooleanFormWidget(FormWidget):
             self._disabledButton.setChecked(not value)
 
 class TextFormWidget(QLineEditValidated, FormWidget):
-    def __init__(self, form, key, info, settings, horizontal=False, *a, **kw):
+    def __init__(self, form, key, info, settings, horizontal=False, sub=False, *a, **kw):
         # Qt does not understand the concept of multiple inheritance, since it 
         # is written in C++. Therefore, the QLineEdit must be the first class 
         # we inherit from, otherwise setText (a slot method) does not function.
@@ -136,7 +137,8 @@ class TextFormWidget(QLineEditValidated, FormWidget):
         # See http://trevorius.com/scrapbook/python/pyqt-multiple-inheritance/ 
         # for more details.
         QLineEditValidated.__init__(self, *a, **kw)
-        FormWidget.__init__(self, form, key, info, settings, horizontal, *a, **kw)
+        FormWidget.__init__(self, form, key, info, settings,
+                            horizontal=horizontal, sub=sub, *a, **kw)
         self._background_color = ""
 
     def contextMenuEvent(self, event):
@@ -503,10 +505,12 @@ class ListFormWidget(FormWidget):
         else:
             sub_info["type"] = sub_info.pop("subtype")
 
+        sub_key = "{}-{}".format(self.key, position)
         sub_info["value"] = sub_value
         sub_info["default"] = sub_default
-        sub_widget = self.form.make_value_widget(self.settings, "{}-{}".format(self.key, position),
-                                                 sub_info, horizontal=True)
+        sub_widget = self.form.make_value_widget(self.settings, sub_key,
+                                                 sub_info, horizontal=True,
+                                                 sub=True)
 
         self._sub_widgets.append(sub_widget)
 
@@ -592,6 +596,17 @@ class ListFormWidget(FormWidget):
     def is_value_allowed(self):
         return all(sub_widget.is_value_allowed() for sub_widget in self._sub_widgets)
 
+class TupleFormWidget(ListFormWidget):
+    def get_value(self):
+        # To ensure that checks agains default values pass, convert the list to 
+        # a tuple, except if this is a sub-widget itself. It does not matter 
+        # for the exported value since it is (eventually) converted to JSON.
+        value = super(TupleFormWidget, self).get_value()
+        if not self.sub:
+            return tuple(value)
+
+        return value
+
 class DictFormWidget(FormWidget):
     def setup_form(self):
         self._sub_widgets = {}
@@ -608,8 +623,10 @@ class DictFormWidget(FormWidget):
             key_text = "{} ({}):".format(key, self.form.format_type(sub_info))
             keyLabel = QtGui.QLabel(key_text)
 
-            subWidget = self.form.make_value_widget(self.settings, "{}-{}".format(self.key, key),
-                                                    sub_info, horizontal=True)
+            sub_key = "{}-{}".format(self.key, key)
+            subWidget = self.form.make_value_widget(self.settings, sub_key,
+                                                    sub_info, horizontal=True,
+                                                    sub=True)
             formLayout.addRow(keyLabel, subWidget)
 
             self._sub_widgets[key] = subWidget
@@ -627,9 +644,10 @@ class DictFormWidget(FormWidget):
         return all(sub_widget.is_value_allowed() for sub_widget in self._sub_widgets.itervalues())
 
 class ChoicesFormWidget(QtGui.QComboBox, FormWidget):
-    def __init__(self, form, key, info, settings, horizontal=False, *a, **kw):
+    def __init__(self, form, key, info, settings, horizontal=False, sub=False, *a, **kw):
         QtGui.QComboBox.__init__(self, *a, **kw)
-        FormWidget.__init__(self, form, key, info, settings, horizontal, *a, **kw)
+        FormWidget.__init__(self, form, key, info, settings,
+                            horizontal=horizontal, sub=sub, *a, **kw)
         self._types = {
             "int": int,
             "string": str,

@@ -25,7 +25,7 @@ class SettingsWidget(QtGui.QWidget):
             "file": FileFormWidget,
             "class": TextFormWidget, # Unless "choices" is supplied
             "list": ListFormWidget,
-            "tuple": ListFormWidget,
+            "tuple": TupleFormWidget,
             "dict": DictFormWidget
         }
 
@@ -190,7 +190,7 @@ class SettingsWidget(QtGui.QWidget):
 
         return self._type_names[info["type"]]
 
-    def make_value_widget(self, settings, key, info, horizontal=None):
+    def make_value_widget(self, settings, key, info, horizontal=None, sub=False):
         """
         Create a `FormWidget` for inputting the value for a specific settings
         key `key` with information dictionary `info`.
@@ -201,7 +201,8 @@ class SettingsWidget(QtGui.QWidget):
 
         If `horizontal` is provided, the `FormWidget` will be laid out as much
         as possible in the given direction. Otherwise, this defaults to the
-        settings widget's `isHorizontal` mode.
+        settings widget's `isHorizontal` mode. If `sub` is `True`, then the
+        widget is marked as being a subwidget of an actual form widget.
         """
 
         if horizontal is None:
@@ -209,11 +210,13 @@ class SettingsWidget(QtGui.QWidget):
 
         choices = self._arguments.get_choices(info)
         if choices is not None:
-            widget = ChoicesFormWidget(self, key, info, settings, horizontal)
+            widget = ChoicesFormWidget(self, key, info, settings,
+                                       horizontal=horizontal, sub=sub)
             widget.add_choices(choices)
         else:
             widget_type = self._type_widgets[info["type"]]
-            widget = widget_type(self, key, info, settings, horizontal)
+            widget = widget_type(self, key, info, settings,
+                                 horizontal=horizontal, sub=sub)
 
         return widget
 

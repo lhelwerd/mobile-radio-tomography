@@ -49,6 +49,12 @@
                 "format": "tests/settings/{}.json",
                 "required": true,
                 "default": "tests/settings/settings.json"
+            },
+            "coordinate": {
+                "type": "tuple",
+                "length": 2,
+                "subtype": "int",
+                "default": [4, 2]
             }
         }
     }

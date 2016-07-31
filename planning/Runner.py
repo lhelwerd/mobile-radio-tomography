@@ -289,6 +289,7 @@ class Planning_Runner(Threadable):
         axes.cla()
 
         axes.set_title("Pareto front with {}, t={}".format(self.algorithm.get_name(), self.current_iteration))
+        axes.set_aspect('auto')
         names = self.problem.get_objective_names()
         axes.set_xlabel("Objective 1 ({})".format(names[0]))
         axes.set_ylabel("Objective 2 ({})".format(names[1]))

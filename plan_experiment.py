@@ -75,7 +75,7 @@ class Experiment_Runner(object):
             ("unsafe_path_cost", ["inf", "20", "40"]),
             ("population_size", [10, 15, 20]),
             ("iteration_limit", [100, 1000, 5000, 10000]),
-            ("use_mutation_operator", None),
+            ("mutation_operator", None),
         ])
 
         self._total = 0

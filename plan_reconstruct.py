@@ -109,14 +109,14 @@ def main(argv):
         print("{}. {} ({})".format(i, runner.get_objectives(i), unsnappable))
 
         do_data("positions-{}-{}".format(stamp, c), positions.tolist())
-        do_plot("display-{}-{}.eps".format(stamp, c))
+        do_plot("display-{}-{}.pdf".format(stamp, c))
 
     # Plot the pareto front between the two objectives.
     print("Pareto front after t={}".format(t_max))
 
     runner.make_pareto_plot()
 
-    do_plot("front-{}.eps".format(stamp))
+    do_plot("front-{}.pdf".format(stamp))
 
 if __name__ == "__main__":
     main(sys.argv[1:])

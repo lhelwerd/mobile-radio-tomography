@@ -1,7 +1,8 @@
+import itertools
+import json
 import os
 import sys
 import traceback
-from collections import OrderedDict
 from subprocess import Popen
 from __init__ import __package__
 from settings import Arguments
@@ -26,7 +27,7 @@ class Experiment_Runner(object):
 
             for setting, value in settings.get_all():
                 if not settings.is_default(setting):
-                    args = self._format_args(setting, value)
+                    args = self._format_arg(setting, value)
                     self._settings_overrides.extend(args)
 
         # On Unix platforms, the `close_fds` argument closes all other file 
@@ -63,20 +64,8 @@ class Experiment_Runner(object):
         self._program.append("plan_reconstruct.py")
         self._program.extend(self._settings_overrides)
 
-        self._setting_experiments = OrderedDict([
-            ("network_size", [(10, 10), (20, 20)]),
-            ("network_padding", [(0, 0), (1, 1), (2, 2), (4, 4)]),
-            ("discrete", None),
-            ("algorithm_class", None),
-            ("unsnappable_rate", [0.5, 0.8]),
-            ("delta_rate", [0.2, 0.5, 0.8]),
-            ("number_of_measurements", [50, 100, 200]),
-            ("collision_avoidance", None),
-            ("unsafe_path_cost", ["inf", "20", "40"]),
-            ("population_size", [10, 15, 20]),
-            ("iteration_limit", [100, 1000, 5000, 10000]),
-            ("mutation_operator", None),
-        ])
+        with open("planning/experiments.json", "r") as experiments_file:
+            self._experiments = json.load(experiments_file)
 
         self._total = 0
         self._failed = 0
@@ -85,12 +74,20 @@ class Experiment_Runner(object):
         self._total = 0
         self._failed = 0
 
-        for setting, options in self._setting_experiments.iteritems():
+        for experiment in self._experiments:
+            setting_keys = experiment.keys()
             try:
-                self._run_setting(setting, options)
+                setting_values = [
+                    self._get_setting_options(setting, options)
+                    for setting, options in experiment.iteritems()
+                ]
             except ValueError:
                 traceback.print_exc()
                 self._fail(1)
+
+            combinations = itertools.product(*setting_values)
+            for combination in combinations:
+                self._run(setting_keys, combination)
 
     def show_results(self):
         print("------------------------------")
@@ -105,38 +102,39 @@ class Experiment_Runner(object):
         self._failed += count
         print("{} {} failed".format(count, "experiment" if count == 1 else "experiments"))
 
-    def _run_setting(self, setting, options):
+    def _get_setting_options(self, setting, options):
         if options is None:
             if setting not in self._settings_infos:
                 raise ValueError("Setting '{}' is not registered".format(setting))
 
             info = self._settings_infos[setting]
             if info["type"] == "bool":
-                self._run(setting, True)
-                self._run(setting, False)
-                return
+                return (True, False)
 
             options = self._arguments.get_choices(info)
             if options is None:
                 raise ValueError("Setting '{}' has no options in experiments or info".format(setting))
 
-        print("Setting '{}' options: {}".format(setting, options))
+        return options
 
-        for option in options:
-            self._run(setting, option)
-
-    def _run(self, setting, option):
+    def _run(self, setting_keys, setting_values):
         self._total += self._number_of_processes
-        print("Running setting '{}' with option '{}'".format(setting, option))
 
-        formatted_args = self._format_args(setting, option)
+        # The arguments for this experiment
+        formatted_args = self._format_args(setting_keys, setting_values)
+        # The arguments as well as the ones provided to the experiment runner
+        settings_args = self._settings_overrides + formatted_args
+
+        print("Full arguments list: {}".format(" ".join(settings_args)))
+
+        # The subprocess call, with Python flags and the full list of arguments
         args = self._program + formatted_args
 
         processes = []
         output_logs = []
         error_logs = []
         for i in range(self._number_of_processes):
-            path = "results/{}-{}".format("-".join(formatted_args), i)
+            path = "results/{}-{}".format("-".join(settings_args), i)
             if not os.path.exists(path):
                 os.mkdir(path)
 
@@ -172,7 +170,14 @@ class Experiment_Runner(object):
         if exit_count > 0 or error_count > 0:
             self._fail(max(exit_count, error_count))
 
-    def _format_args(self, setting, option):
+    def _format_args(self, setting_keys, setting_values):
+        args = []
+        for setting, option in zip(setting_keys, setting_values):
+            args.extend(self._format_arg(setting, option))
+
+        return args
+
+    def _format_arg(self, setting, option):
         setting_arg = setting
         if option is False:
             setting_arg = "no_{}".format(setting_arg)
@@ -217,6 +222,8 @@ def main(argv):
 
     try:
         runner.execute()
+    except:
+        traceback.print_exc()
     finally:
         runner.show_results()
         sys.exit(runner.failed)

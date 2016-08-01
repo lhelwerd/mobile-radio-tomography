@@ -1,0 +1,24 @@
+[
+    {
+        "network_size": [[10, 10], [20, 20]],
+        "network_padding": [[0, 0], [1, 1], [2, 2], [4, 4]],
+        "discrete": [true, false],
+        "number_of_measurements": [50, 100, 200]
+    },
+    {
+        "unsnappable_rate": [0.5, 0.8],
+        "delta_rate": [0.2, 0.5, 0.8]
+    },
+    {
+        "collision_avoidance": [true, false],
+        "mutation_operator": [true, false]
+    },
+    {
+        "unsafe_path_cost": [Infinity, 0, 20, 40]
+    },
+    {
+        "algorithm_class": null,
+        "population_size": [10, 15, 20],
+        "iteration_limit": [100, 1000, 5000, 10000]
+    }
+]

@@ -21,6 +21,7 @@ from matplotlib.lines import Line2D
 # Package imports
 from Control_Panel_View import Control_Panel_View, Control_Panel_View_Name
 from Control_Panel_Settings_Widgets import SettingsTableWidget
+from ..planning import COMPONENTS
 from ..planning.Runner import Planning_Runner
 
 class Planning_Sort_Order(object):
@@ -226,11 +227,6 @@ class Control_Panel_Planning_View(Control_Panel_View):
         # Create the settings table widgets.
         self._forms = {}
 
-        components = (
-            "planning", "planning_runner",
-            "planning_algorithm", "planning_problem",
-            "planning_assignment", "planning_collision_avoidance"
-        )
         prefix = self._controller.arguments.get_settings("planning").name
         pattern = r'^{}: ([a-z])'.format(re.escape(prefix))
 
@@ -238,7 +234,7 @@ class Control_Panel_Planning_View(Control_Panel_View):
         settings_layout = QtGui.QVBoxLayout()
         width = self._listWidget.sizeHint().width()
 
-        for component in components:
+        for component in COMPONENTS:
             form = SettingsTableWidget(self._controller.arguments, component,
                                        include_parent=False)
 

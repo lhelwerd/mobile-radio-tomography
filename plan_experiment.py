@@ -1,34 +1,18 @@
-import itertools
-import json
 import os
 import sys
 import traceback
 from subprocess import Popen
 from __init__ import __package__
+from planning.Experiment import Experiment
 from settings import Arguments
 
-class Experiment_Runner(object):
+class Experiment_Runner(Experiment):
     def __init__(self, arguments):
-        self._arguments = arguments
-        self._settings = self._arguments.get_settings("planning_experiments")
+        super(Experiment_Runner, self).__init__(arguments)
+
+        self._settings = arguments.get_settings("planning_experiments")
         self._number_of_processes = self._settings.get("number_of_processes")
         self._pass_environment = self._settings.get("pass_environment")
-
-        planning_components = (
-            "planning", "planning_runner",
-            "planning_algorithm", "planning_problem",
-            "planning_assignment", "planning_collision_avoidance"
-        )
-        self._settings_infos = {}
-        self._settings_overrides = []
-        for component in planning_components:
-            settings = self._arguments.get_settings(component)
-            self._settings_infos.update(settings.get_info())
-
-            for setting, value in settings.get_all():
-                if not settings.is_default(setting):
-                    args = self._format_arg(setting, value)
-                    self._settings_overrides.extend(args)
 
         # On Unix platforms, the `close_fds` argument closes all other file 
         # descriptors than the standard ones (0, 1, and 2). This is because the 
@@ -64,9 +48,6 @@ class Experiment_Runner(object):
         self._program.append("plan_reconstruct.py")
         self._program.extend(self._settings_overrides)
 
-        with open("planning/experiments.json", "r") as experiments_file:
-            self._experiments = json.load(experiments_file)
-
         self._total = 0
         self._failed = 0
         
@@ -75,17 +56,13 @@ class Experiment_Runner(object):
         self._failed = 0
 
         for experiment in self._experiments:
-            setting_keys = experiment.keys()
             try:
-                setting_values = [
-                    self._get_setting_options(setting, options)
-                    for setting, options in experiment.iteritems()
-                ]
+                setting_keys, combinations = self.get_options(experiment)
             except ValueError:
                 traceback.print_exc()
                 self._fail(1)
+                continue
 
-            combinations = itertools.product(*setting_values)
             for combination in combinations:
                 self._run(setting_keys, combination)
 
@@ -102,26 +79,11 @@ class Experiment_Runner(object):
         self._failed += count
         print("{} {} failed".format(count, "experiment" if count == 1 else "experiments"))
 
-    def _get_setting_options(self, setting, options):
-        if options is None:
-            if setting not in self._settings_infos:
-                raise ValueError("Setting '{}' is not registered".format(setting))
-
-            info = self._settings_infos[setting]
-            if info["type"] == "bool":
-                return (True, False)
-
-            options = self._arguments.get_choices(info)
-            if options is None:
-                raise ValueError("Setting '{}' has no options in experiments or info".format(setting))
-
-        return options
-
     def _run(self, setting_keys, setting_values):
         self._total += self._number_of_processes
 
         # The arguments for this experiment
-        formatted_args = self._format_args(setting_keys, setting_values)
+        formatted_args = self.format_args(setting_keys, setting_values)
         # The arguments as well as the ones provided to the experiment runner
         settings_args = self._settings_overrides + formatted_args
 
@@ -169,28 +131,6 @@ class Experiment_Runner(object):
 
         if exit_count > 0 or error_count > 0:
             self._fail(max(exit_count, error_count))
-
-    def _format_args(self, setting_keys, setting_values):
-        args = []
-        for setting, option in zip(setting_keys, setting_values):
-            args.extend(self._format_arg(setting, option))
-
-        return args
-
-    def _format_arg(self, setting, option):
-        setting_arg = setting
-        if option is False:
-            setting_arg = "no_{}".format(setting_arg)
-
-        setting_arg = "--{}".format(setting_arg.replace('_', '-'))
-
-        args = [setting_arg]
-        if isinstance(option, (tuple, list)):
-            args.extend([str(value) for value in option])
-        elif not isinstance(option, bool):
-            args.append(str(option))
-
-        return args
 
     def _wait(self, processes):
         # Wait until all processes have finished.

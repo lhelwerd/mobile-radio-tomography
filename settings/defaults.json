@@ -794,6 +794,22 @@
             }
         }
     },
+    "planning_results": {
+        "name": "Planning problem: results",
+        "parent": "planning_experiments",
+        "settings": {
+            "results_path": {
+                "help": "Path name to the directory containing results",
+                "type": "string",
+                "default": "results"
+            },
+            "singular": {
+                "help": "Compare singular runs instead of the full experiments",
+                "type": "bool",
+                "default": false
+            }
+        }
+    },
     "reconstruction": {
         "name": "Reconstruction",
         "settings": {

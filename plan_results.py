@@ -1,8 +1,17 @@
+# Core imports
+import glob
 import os
 import re
 import sys
 import traceback
+from collections import OrderedDict
+
+# Library imports
+import numpy as np
+
+# Package imports
 from __init__ import __package__
+from planning.Algorithm import NSGA, SMS_EMOA
 from planning.Experiment import Experiment
 from planning.Problem import Reconstruction_Plan_Discrete
 from settings import Arguments
@@ -25,9 +34,13 @@ class Experiment_Results(Experiment):
             self._experiments = experiments
 
         problem = Reconstruction_Plan_Discrete(arguments)
-        objective_names = problem.get_objective_names()
+        self._objectives = problem.get_objective_names()
 
-        objectives_parts = ["([0-9.-]+)"] * len(objective_names)
+        self._algorithms = [
+            algorithm(problem, arguments) for algorithm in (NSGA, SMS_EMOA)
+        ]
+
+        objectives_parts = ["([0-9.-]+)"] * len(self._objectives)
         objectives_regex = r"\s*{}\s*".format(r",?\s+".join(objectives_parts))
 
         # Regular expression patterns that can parse output logs from runs.
@@ -56,14 +69,14 @@ class Experiment_Results(Experiment):
             "knees": {
                 "regex": r"^Current knee point objectives: " + \
                          r"\[{}\]".format(objectives_regex),
-                "names": objective_names,
-                "casts": [float] * len(objective_names),
+                "names": self._objectives,
+                "casts": [float] * len(self._objectives),
                 "group": "iteration"
             },
             "individual": {
                 "regex": r"^(\d+)\. \[{}\] \((\d+)\)".format(objectives_regex),
-                "names": ["individual"] + objective_names + ["unsnappable"],
-                "casts": [int] + [float] * len(objective_names) + [int],
+                "names": ["individual"] + self._objectives + ["unsnappable"],
+                "casts": [int] + [float] * len(self._objectives) + [int],
                 "group": "individual"
             }
         }
@@ -94,8 +107,10 @@ class Experiment_Results(Experiment):
                 self._error(e.message)
 
     def show_results(self):
+        dir_count = len(glob.glob("{}/*/".format(self._results_path)))
         print("------------------------------")
-        print("Number of expected experiments: {}".format(self._total))
+        print("Number of experiments: {}".format(self._total))
+        print("Number of directories containing results: {}".format(dir_count))
         print("Number of problems: {}".format(self._errors))
 
     def _run(self, setting_keys, combination):
@@ -117,7 +132,9 @@ class Experiment_Results(Experiment):
 
             process_results.append(data)
 
-        self._sample(process_results)
+        total_results = self._sample(process_results)
+        if total_results:
+            self._output(total_results)
 
     def _parse_output_log(self, path, data):
         current = {
@@ -144,8 +161,6 @@ class Experiment_Results(Experiment):
 
                         data[data_group][identifier].update(groups)
 
-        print(data)
-
     def _cast(self, casts, values):
         return [cast(value) for cast, value in zip(casts, values)]
 
@@ -157,10 +172,72 @@ class Experiment_Results(Experiment):
         # - "interesting" pareto fronts or spreading measures, etc.
         # - "best" result (take into account that objective values differ
         #   between parameters, so we need to compare within isometric groups.)
-        pass
+        its = data["iteration"]
+        ins = data["individual"]
+
+        iteration_limit = max(its.keys())
+        if len(ins) > 0:
+            knee = np.array([
+                its[iteration_limit][obj] for obj in self._objectives
+            ])
+        else:
+            knee = np.array([np.inf] * len(self._objectives))
+
+        data["results"] = {
+            "knee": knee
+        }
+        for it_field in ("runtime", "speed"):
+            data["results"][it_field] = OrderedDict([
+                (iteration, its[iteration][it_field]) for iteration in its
+            ])
+
+        individuals = OrderedDict()
+        for individual in ins:
+            individuals[individual] = np.array([
+                ins[individual][obj] for obj in self._objectives
+            ])
+
+        for algorithm in self._algorithms:
+            key = "contribution_{}".format(algorithm.get_name())
+            if len(individuals) == 0:
+                contribution = np.inf
+            else:
+                contribution = algorithm.sort_contribution(individuals)
+
+            data["results"][key] = np.median(contribution)
 
     def _sample(self, process_results):
-        # sample results from multiple processes (mean, std dev)
+        # sample results from multiple processes (mean/median, std dev, var)
+        if len(process_results) == 0:
+            return {}
+
+        total_results = {}
+        keys = process_results[0]["results"].keys()
+        for key in keys:
+            results = [data["results"][key] for data in process_results]
+            if isinstance(results[0], OrderedDict):
+                total = OrderedDict()
+                for point in results[0]:
+                    point_results = [result[point] for result in results]
+                    total[point] = self._get_samples(point_results)
+
+                total_results[key] = total
+            else:
+                total_results[key] = self._get_samples(results)
+
+        return total_results
+
+    def _get_samples(self, results):
+        sample_funcs = ["mean", "std", "median", "min", "max", "var"]
+        results = np.array(results)
+        if np.any(results == np.inf):
+            return dict([(key, np.inf) for key in sample_funcs])
+
+        return dict([
+            (key, getattr(np, key)(results, axis=0)) for key in sample_funcs
+        ])
+
+    def _output(self, experiment_results):
         pass
 
 def main(argv):

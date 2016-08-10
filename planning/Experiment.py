@@ -21,7 +21,7 @@ class Experiment(object):
             self._experiments = json.load(experiments_file)
 
     def get_options(self, experiment):
-        setting_keys = experiment.keys()
+        setting_keys = tuple(experiment.keys())
         setting_values = [
             self._get_setting_options(setting, options)
             for setting, options in experiment.iteritems()

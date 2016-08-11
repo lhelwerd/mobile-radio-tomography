@@ -807,6 +807,11 @@
                 "help": "Compare singular runs instead of the full experiments",
                 "type": "bool",
                 "default": false
+            },
+            "overrides_in_dirs": {
+                "help": "Whether overidden settings are also recorded in the directory names of experiments. For older experiments, this should be disabled.",
+                "type": "bool",
+                "default": false
             }
         }
     },

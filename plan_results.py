@@ -2,6 +2,7 @@
 import glob
 import os
 import re
+import shutil
 import sys
 import traceback
 from collections import OrderedDict
@@ -31,7 +32,11 @@ class Experiment_Results(Experiment):
 
         self._settings = arguments.get_settings("planning_results")
         self._number_of_processes = self._settings.get("number_of_processes")
+
+        self._overrides_in_dirs = self._settings.get("overrides_in_dirs")
         self._results_path = self._settings.get("results_path")
+        if self._results_path.endswith("/"):
+            self._results_path = self._results_path[:-1]
 
         if self._settings.get("singular"):
             # Flatten the experiments
@@ -151,11 +156,15 @@ class Experiment_Results(Experiment):
         print("Number of directories containing results: {}".format(dir_count))
         print("Number of problems: {}".format(self._errors))
 
-    def _run(self, setting_keys, combination):
+    def _format_dir_args(self, setting_keys, combination):
         formatted_args = self.format_args(setting_keys, combination)
-        settings_args = self._settings_overrides + formatted_args
-        args = "-".join(settings_args)
+        if self._overrides_in_dirs:
+            formatted_args = self._settings_overrides + formatted_args
 
+        return "-".join(formatted_args)
+
+    def _run(self, setting_keys, combination):
+        args = self._format_dir_args(setting_keys, combination)
         process_results = []
         for i in range(self._number_of_processes):
             self._total += 1
@@ -357,6 +366,30 @@ class Experiment_Results(Experiment):
                                          name="{} at knee".format(objective))
                     self._plot_knee(group, experiments, objective)
 
+    def _get_group_name(self, group, separator=", "):
+        if isinstance(group, tuple):
+            return separator.join(group)
+
+        return group
+
+    def _copy_plot_file(self, name, settings=None, plot_file=None,
+                        process_id=None, **kwargs):
+        args = self._format_dir_args(*zip(*settings))
+
+        # If the experiment results were moved, then replace the old save path 
+        # with the current results path
+        plot_file = re.sub(r"^(.+)/({}-{})/(.+)$".format(args, process_id),
+                           r"{}/\2/\3".format(self._results_path),
+                           plot_file)
+        if not os.path.exists(plot_file):
+            self._error("Could not find plot file '{}' for {} to be copied to {}".format(plot_file, args, name))
+            return
+
+        extension = os.path.splitext(plot_file)[1]
+        target_file = "{}/{}{}".format(self._results_path, name, extension)
+        shutil.copyfile(plot_file, target_file)
+        print("Copied {} to {}".format(plot_file, target_file))
+
     def _find_best(self, experiments, size, comparator, collector):
         best = np.array([np.inf] * size)
         best_data = {}
@@ -373,9 +406,10 @@ class Experiment_Results(Experiment):
         best_knee, data = self._find_best(experiments, len(self._objectives),
                                           comparator, self._find_knee_plot)
 
-
         print("Best knee for '{}': {}".format(group, best_knee))
-        print("Settings: {settings} Plot file: {plot_file}".format(**data))
+        print("Settings: {}".format(" ".join(self._format_label_args(data))))
+        group_key = self._get_group_name(group, separator="-")
+        self._copy_plot_file("{}-best-knee".format(group_key), **data)
 
     def _find_knee_plot(self, experiment, knee):
         process_id = experiment["knee"]["argknee"]
@@ -384,6 +418,7 @@ class Experiment_Results(Experiment):
 
         return {
             "plot_file": individual["plot_file"],
+            "process_id": process_id,
             "settings": experiment["settings"]
         }
 
@@ -407,7 +442,9 @@ class Experiment_Results(Experiment):
                                              comparator, self._find_front_plot)
 
         print("Best contribution for '{}': {}".format(group, contribution))
-        print("Settings: {settings} Plot file: {plot_file}".format(**data))
+        print("Settings: {}".format(" ".join(self._format_label_args(data))))
+        group_key = self._get_group_name(group, separator="-")
+        self._copy_plot_file("{}-best-front".format(group_key), **data)
 
     def _find_front_plot(self, experiment, value):
         process_id = experiment["contribution"]["argknee"]
@@ -416,6 +453,7 @@ class Experiment_Results(Experiment):
 
         return {
             "plot_file": process["iteration"][iteration_limit]["plot_file"],
+            "process_id": process_id,
             "settings": experiment["settings"]
         }
 
@@ -426,11 +464,13 @@ class Experiment_Results(Experiment):
         axes.set_xlabel(xlabel)
         axes.set_ylabel(ylabel)
 
-    def _get_group_name(self, group, separator=", "):
-        if isinstance(group, tuple):
-            return separator.join(group)
+    def _format_label_args(self, experiment, use_keys=True):
+        args = []
+        for key, value in experiment["settings"]:
+            arg = self.format_arg(key, value)
+            args.append(" ".join(arg if use_keys else arg[1:]))
 
-        return group
+        return args
 
     def _plot_iteration(self, group, experiments, key, mean="mean", std="std",
                         name=None):
@@ -442,13 +482,15 @@ class Experiment_Results(Experiment):
         self._start_plot(title, "iteration", key)
 
         axes = plt.gca()
-        for args, experiment in experiments.iteritems():
+        for experiment in experiments.itervalues():
             results = experiment[key]
             x = results.keys()
             y = [sample[mean] for sample in results.values()]
             yerr = [sample[std] for sample in results.values()]
 
-            axes.errorbar(x, y, yerr=yerr, fmt='o-', label=args)
+            args = self._format_label_args(experiment,
+                                           use_keys=isinstance(group, tuple))
+            axes.errorbar(x, y, yerr=yerr, fmt='o-', label=", ".join(args))
 
         axes.legend(loc="best")
         group_key = self._get_group_name(group, separator="-")
@@ -476,11 +518,7 @@ class Experiment_Results(Experiment):
             means.append(experiment["knee"]["{}_knee".format(objective)])
             stds.append(experiment["knee"]["{}_std".format(objective)])
 
-            args = []
-            for key, value in experiment["settings"]:
-                arg = self.format_arg(key, value)
-                args.append(" ".join(arg if multi_settings else arg[1:]))
-
+            args = self._format_label_args(experiment, use_keys=multi_settings)
             labels.append("\n".join(args))
 
         indices = np.arange(len(means))

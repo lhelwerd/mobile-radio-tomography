@@ -17,7 +17,8 @@ class Experiment(object):
                     args = self.format_arg(setting, value)
                     self._settings_overrides.extend(args)
 
-        with open("planning/experiments.json", "r") as experiments_file:
+        settings = self._arguments.get_settings("planning_experiments")
+        with open(settings.get("experiments_file"), "r") as experiments_file:
             self._experiments = json.load(experiments_file)
 
     def get_options(self, experiment):

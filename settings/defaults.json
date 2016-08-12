@@ -791,6 +791,14 @@
                 "help": "Whether to pass environment variables and Python flags to the processes",
                 "type": "bool",
                 "default": true
+            },
+            "experiments_file": {
+                "help": "The file containing the experiments",
+                "type": "file",
+                "format": "planning/{}.json",
+                "full_name": true,
+                "required": true,
+                "default": "planning/experiments.json"
             }
         }
     },
@@ -811,7 +819,7 @@
             "overrides_in_dirs": {
                 "help": "Whether overidden settings are also recorded in the directory names of experiments. For older experiments, this should be disabled.",
                 "type": "bool",
-                "default": false
+                "default": true
             }
         }
     },

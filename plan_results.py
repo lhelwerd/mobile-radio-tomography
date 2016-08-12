@@ -406,6 +406,10 @@ class Experiment_Results(Experiment):
         best_knee, data = self._find_best(experiments, len(self._objectives),
                                           comparator, self._find_knee_plot)
 
+        if not data:
+            print("No best knee for '{}' found!".format(group))
+            return
+
         print("Best knee for '{}': {}".format(group, best_knee))
         print("Settings: {}".format(" ".join(self._format_label_args(data))))
         group_key = self._get_group_name(group, separator="-")
@@ -440,6 +444,10 @@ class Experiment_Results(Experiment):
 
         contribution, data = self._find_best(experiments, len(self._algorithms),
                                              comparator, self._find_front_plot)
+
+        if not data:
+            print("No best front for '{}' found!".format(group))
+            return
 
         print("Best contribution for '{}': {}".format(group, contribution))
         print("Settings: {}".format(" ".join(self._format_label_args(data))))

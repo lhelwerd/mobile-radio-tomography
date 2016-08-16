@@ -47,6 +47,8 @@ class Experiment_Results(Experiment):
 
             self._experiments = experiments
 
+        self._legend_threshold = self._settings.get("separate_legend_threshold")
+
         problem = Reconstruction_Plan_Discrete(arguments)
         self._objectives = problem.get_objective_names()
 
@@ -480,41 +482,65 @@ class Experiment_Results(Experiment):
 
         return args
 
-    def _plot_iteration(self, group, experiments, key, mean="mean", std="std",
-                        name=None):
-        if name is None:
-            name = key
-
-        group_name = self._get_group_name(group)
-        title = "Convergence of {} within {} group".format(name, group_name)
-        self._start_plot(title, "iteration", key)
-
+    def _plot_lines(self, experiments, key, use_keys=True,
+                    separate_legend=False, mean="mean", std="std"):
         axes = plt.gca()
+        lines = []
+        labels = []
         for experiment in experiments.itervalues():
             results = experiment[key]
             x = results.keys()
             y = [sample[mean] for sample in results.values()]
             yerr = [sample[std] for sample in results.values()]
 
-            args = self._format_label_args(experiment,
-                                           use_keys=isinstance(group, tuple))
-            axes.errorbar(x, y, yerr=yerr, fmt='o-', label=", ".join(args))
+            args = self._format_label_args(experiment, use_keys=use_keys)
+            label = ", ".join(args)
+            if separate_legend:
+                lines.append(axes.errorbar(x, y, yerr=yerr, fmt='o-'))
+                labels.append(label)
+            else:
+                axes.errorbar(x, y, yerr=yerr, fmt='o-', label=label)
 
-        axes.legend(loc="best")
+        return lines, labels
+
+    def _plot_iteration(self, group, experiments, key, mean="mean", std="std",
+                        name=None):
+        if name is None:
+            name = key
+
+        use_keys = isinstance(group, str) or len(group) > 1
+        separate_legend = len(experiments) >= self._legend_threshold
+        group_name = self._get_group_name(group)
+        title = "Convergence of {} within {} group".format(name, group_name)
+        self._start_plot(title, "iteration", key)
+
+        axes = plt.gca()
+        lines, labels = self._plot_lines(experiments, key, use_keys=use_keys,
+                                         separate_legend=separate_legend,
+                                         mean=mean, std=std)
+
+        if not separate_legend:
+            axes.legend(loc="best")
+
         group_key = self._get_group_name(group, separator="-")
-        self._finish_plot("{}-{}".format(group_key, name.replace(" ", "-")))
+        plot_name = "{}-{}".format(group_key, name.replace(" ", "-"))
+        self._finish_plot(plot_name)
+
+        if separate_legend:
+            axes.cla()
+            plt.axis("off")
+            axes.legend(lines, labels, loc="center")
+            self._finish_plot("{}-legend".format(plot_name))
 
     def _plot_knee(self, group, experiments, objective):
-        multi_settings = isinstance(group, tuple) and len(group) > 1
+        multi_settings = isinstance(group, str) or len(group) > 1
         group_name = self._get_group_name(group)
         title = "Comparison of {} at knee points within {} group".format(objective, group_name)
 
         if multi_settings:
             xlabel = "settings"
-        elif isinstance(group, tuple):
-            xlabel = group[0]
         else:
-            xlabel = group
+            xlabel = group[0]
 
         self._start_plot(title, xlabel, objective)
 

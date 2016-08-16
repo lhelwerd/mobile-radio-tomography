@@ -820,6 +820,13 @@
                 "help": "Whether overidden settings are also recorded in the directory names of experiments. For older experiments, this should be disabled.",
                 "type": "bool",
                 "default": true
+            },
+            "separate_legend_threshold": {
+                "help": "Minimum number of experiments within a group to cause the legend to be placed in its own output file",
+                "type": "int",
+                "min": 0,
+                "inf": true,
+                "default": 6
             }
         }
     },

@@ -94,8 +94,36 @@ class TestMissionFanCorner(EnvironmentTestCase):
         waypoints = list(self.mission.waypoints)
         self.assertEqual(waypoints, self.second_waypoints)
 
+    def test_get_points(self):
+        with patch('sys.stdout'):
+            self.mission.setup()
+
+        make_location = lambda north, east: LocationLocal(north, east, 0.0)
+        first_points = [
+            make_location(north, east) for north, east in self.first_waypoints
+        ]
+        points = self.mission.get_points()
+
+        self.assertEqual(len(points), len(first_points))
+        for actual, expected in zip(points, first_points):
+            self.assertEqual(actual, expected)
+
+        # Check second vehicle's state.
+        self.vehicle._location = (0, 3)
+        with patch('sys.stdout'):
+            self.mission.setup()
+
+        second_points = [
+            make_location(north, east) for north, east in self.second_waypoints
+        ]
+        points = self.mission.get_points()
+
+        self.assertEqual(len(points), len(second_points))
+        for actual, expected in zip(points, second_points):
+            self.assertEqual(actual, expected)
+
     @patch.object(Robot_Vehicle, "_state_loop")
-    def test_mission(self, state_loop_mock):
+    def test_interface_mission(self, state_loop_mock):
         with patch('sys.stdout'):
             self.mission.setup()
             self.mission.arm_and_takeoff()
@@ -126,6 +154,7 @@ class TestMissionFanCorner(EnvironmentTestCase):
         self.vehicle._check_state()
         self.assertEqual(self.vehicle._current_waypoint, 1)
         self.assertEqual(self.vehicle.get_waypoint(), None)
+        self.assertTrue(self.environment.location_valid())
         self.assertTrue(self.environment.location_valid(other_valid=True, other_id=self.rf_sensor.id + 1,
                                                         other_index=1))
 

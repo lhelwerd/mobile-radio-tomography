@@ -118,6 +118,7 @@ class Environment(Location_Proxy):
         # network, ensuring that we wait for enough measurements between the 
         # required sensors.
         self._valid_measurements = {}
+        self._vehicle_locations = {}
         self._is_measurement_valid = False
         self._required_sensors = set()
         self._own_waypoint_valid = False
@@ -277,13 +278,22 @@ class Environment(Location_Proxy):
         coords = self.geometry.get_coordinates(self.vehicle.location)[:2]
         return coords, self._own_waypoint_index
 
-    def location_valid(self, other_valid=None, other_id=None, other_index=None):
+    def get_vehicle_locations(self):
+        if self._rf_sensor is None:
+            return {1: self.vehicle.location}
+
+        self._vehicle_locations[self._rf_sensor.id] = self.vehicle.location
+        return self._vehicle_locations
+
+    def location_valid(self, other_valid=None, other_id=None, other_index=None,
+                       other_location=None):
         """
         Callback method for the valid callback of the `RF_Sensor`.
 
         The argument `other_valid`, when given, indicates whether the location
         of another vehicle is also valid. This vehicle is identified by its RF
-        sensor ID `other_id`, and is at waypoint index `other_index`. These must
+        sensor ID `other_id`, and is at the coordinate tuple `other_location`
+        for the purposes of reaching waypoint index `other_index`. These must
         also be given in this case.
 
         This is used to determine whether the measurement is valid on both ends
@@ -301,24 +311,30 @@ class Environment(Location_Proxy):
             own_valid = False
 
         if other_id is None:
-            # We are going to send an RSSI broadcast packet, so we update 
-            # whether the current vehicle's location is valid.
+            # No `other_id` is provided. This meants that we are going to send 
+            # an RSSI broadcast packet, so we update whether the current 
+            # vehicle's location is valid.
             if self._rf_sensor is not None and own_valid:
                 self._valid_measurements[self._rf_sensor.id] = own_index
-        elif other_valid:
+        else:
             # We are going to send a ground station packet. This packet can 
             # only be complete if we have had measurements from all required 
             # sensors, but we also want to ensure we have sent enough valid 
             # measurements to the other vehicles as well. Only then will we 
             # consider the entire measurement to be valid.
-            if not self._is_valid(self._rf_sensor.id, own_index):
-                self._is_measurement_valid = False
-            else:
-                self._valid_measurements[other_id] = other_index
-                self._is_measurement_valid = all(
-                    self._is_valid(id, self._wait_waypoint_index)
-                    for id in self._required_sensors
-                )
+            if other_valid:
+                if not self._is_valid(self._rf_sensor.id, own_index):
+                    self._is_measurement_valid = False
+                else:
+                    self._valid_measurements[other_id] = other_index
+                    self._is_measurement_valid = all(
+                        self._is_valid(id, self._wait_waypoint_index)
+                        for id in self._required_sensors
+                    )
+
+            if other_location is not None:
+                location = self._geometry.make_location(*other_location)
+                self._vehicle_locations[other_id] = location
 
         return own_valid
 
@@ -377,6 +393,10 @@ class Environment(Location_Proxy):
         if required_sensors is None:
             required_sensors = range(1, self._rf_sensor.number_of_sensors + 1)
 
+        # Register the sensors that we need to collect measurements from. The 
+        # current vehicle is always required regardless of the provided 
+        # `required_sensors`, i.e., our own location must be valid, but this is 
+        # verified separately, before the required sensors are even considered.
         self._required_sensors = set(required_sensors)
         self._required_sensors.discard(self._rf_sensor.id)
 

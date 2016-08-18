@@ -371,18 +371,22 @@ class RF_Sensor(Threadable):
 
         from_valid = rssi_broadcast_packet.get("valid")
         from_id = rssi_broadcast_packet.get("sensor_id")
+        from_latitude = rssi_broadcast_packet.get("latitude")
+        from_longitude = rssi_broadcast_packet.get("longitude")
+        from_location = (from_latitude, from_longitude)
         from_waypoint_index = rssi_broadcast_packet.get("waypoint_index")
 
         location = self._location_callback()[0]
         location_valid = self._valid_callback(other_valid=from_valid,
                                               other_id=from_id,
-                                              other_index=from_waypoint_index)
+                                              other_index=from_waypoint_index,
+                                              other_location=from_location)
 
         packet = Packet()
         packet.set("specification", "rssi_ground_station")
         packet.set("sensor_id", self._id)
-        packet.set("from_latitude", rssi_broadcast_packet.get("latitude"))
-        packet.set("from_longitude", rssi_broadcast_packet.get("longitude"))
+        packet.set("from_latitude", from_latitude)
+        packet.set("from_longitude", from_longitude)
         packet.set("from_valid", from_valid)
         packet.set("to_latitude", location[0])
         packet.set("to_longitude", location[1])

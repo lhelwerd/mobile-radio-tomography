@@ -47,14 +47,15 @@ class Experiment_Results(Experiment):
 
             self._experiments = experiments
 
+        self._number_of_points = self._settings.get("number_of_points")
         self._legend_threshold = self._settings.get("separate_legend_threshold")
 
         problem = Reconstruction_Plan_Discrete(arguments)
         self._objectives = problem.get_objective_names()
 
-        self._algorithms = [
-            algorithm(problem, arguments) for algorithm in (NSGA, SMS_EMOA)
-        ]
+        self._algorithms = OrderedDict()
+        for algorithm in (NSGA, SMS_EMOA):
+            self._algorithms[algorithm.__name__] = algorithm(problem, arguments)
 
         objectives_parts = ["([0-9.-]+)"] * len(self._objectives)
         objectives_regex = r"\s*{}\s*".format(r",?\s+".join(objectives_parts))
@@ -129,6 +130,13 @@ class Experiment_Results(Experiment):
         self._experiment_results = OrderedDict([
             (group, OrderedDict()) for group in experiment_groups
         ])
+
+        self._group_titles = {
+            "algorithm_class": "algorithms"
+        }
+        self._argument_labelers = {
+            "algorithm_class": self._format_algorithm_class
+        }
 
     def _error(self, message):
         sys.stderr.write("{}\n".format(message))
@@ -259,7 +267,7 @@ class Experiment_Results(Experiment):
         data["individuals"] = individuals
 
         data["results"]["contribution"] = np.empty(len(self._algorithms))
-        for i, algorithm in enumerate(self._algorithms):
+        for i, algorithm in enumerate(self._algorithms.values()):
             if len(individuals) == 0:
                 contribution = np.inf
             else:
@@ -296,7 +304,8 @@ class Experiment_Results(Experiment):
             # Row-wise samples for 2d-arrays
             # Use Algorithm.sort_nondominated to retrieve pareto front and 
             # deduce a sampled minimum/maximum/knee from that.
-            R = self._algorithms[0].sort_nondominated(M, all_layers=False)[0]
+            algorithm = self._algorithms.values()[0]
+            R = algorithm.sort_nondominated(M, all_layers=False)[0]
             M = np.array(R.values())
             samples = {}
 
@@ -368,11 +377,21 @@ class Experiment_Results(Experiment):
                                          name="{} at knee".format(objective))
                     self._plot_knee(group, experiments, objective)
 
-    def _get_group_name(self, group, separator=", "):
+    def _get_group_name(self, group, separator=", ", word_separator="_"):
         if isinstance(group, tuple):
-            return separator.join(group)
+            return separator.join(g.replace("_", word_separator) for g in group)
 
-        return group
+        return group.replace("_", word_separator)
+
+    def _get_group_title(self, group):
+        if isinstance(group, tuple) and len(group) == 1:
+            group = group[0]
+
+        if group in self._group_titles:
+            return self._group_titles[group]
+
+        group_key = self._get_group_name(group, word_separator=" ")
+        return "{} group".format(group_key)
 
     def _copy_plot_file(self, name, settings=None, plot_file=None,
                         process_id=None, **kwargs):
@@ -470,17 +489,31 @@ class Experiment_Results(Experiment):
     def _start_plot(self, title, xlabel, ylabel):
         axes = plt.gca()
         axes.cla()
-        axes.set_title(title)
+        axes.set_title(title, y=1.05)
         axes.set_xlabel(xlabel)
         axes.set_ylabel(ylabel)
 
     def _format_label_args(self, experiment, use_keys=True):
         args = []
         for key, value in experiment["settings"]:
-            arg = self.format_arg(key, value)
-            args.append(" ".join(arg if use_keys else arg[1:]))
+            if use_keys:
+                args.append(self._format_label_arg(key, value))
+            elif key in self._argument_labelers:
+                args.append(self._argument_labelers[key](value))
+            elif isinstance(value, bool):
+                args.append("enabled" if value else "disabled")
+            else:
+                args.append(self._format_label_arg(key, value, offset=1))
 
         return args
+
+    def _format_label_arg(self, key, value, offset=0):
+        arg = self.format_arg(key, value)
+        return " ".join(arg[offset:])
+
+    def _format_algorithm_class(self, value):
+        algorithm = self._algorithms[value]
+        return algorithm.get_name()
 
     def _plot_lines(self, experiments, key, use_keys=True,
                     separate_legend=False, mean="mean", std="std"):
@@ -495,11 +528,20 @@ class Experiment_Results(Experiment):
 
             args = self._format_label_args(experiment, use_keys=use_keys)
             label = ", ".join(args)
+            kwargs = {
+                "yerr": yerr,
+                "fmt": "o-"
+            }
+            if len(y) > self._number_of_points:
+                sample = int(np.ceil(len(y) / float(self._number_of_points)))
+                kwargs["markevery"] = sample
+                kwargs["errorevery"] = sample
+
             if separate_legend:
-                lines.append(axes.errorbar(x, y, yerr=yerr, fmt='o-'))
+                lines.append(axes.errorbar(x, y, **kwargs))
                 labels.append(label)
             else:
-                axes.errorbar(x, y, yerr=yerr, fmt='o-', label=label)
+                axes.errorbar(x, y, label=label, **kwargs)
 
         return lines, labels
 
@@ -510,8 +552,8 @@ class Experiment_Results(Experiment):
 
         use_keys = isinstance(group, str) or len(group) > 1
         separate_legend = len(experiments) >= self._legend_threshold
-        group_name = self._get_group_name(group)
-        title = "Convergence of {} within {} group".format(name, group_name)
+        group_title = self._get_group_title(group)
+        title = "Convergence of {} within {}".format(name, group_title)
         self._start_plot(title, "iteration", key)
 
         axes = plt.gca()
@@ -534,13 +576,13 @@ class Experiment_Results(Experiment):
 
     def _plot_knee(self, group, experiments, objective):
         multi_settings = isinstance(group, str) or len(group) > 1
-        group_name = self._get_group_name(group)
-        title = "Comparison of {} at knee points within {} group".format(objective, group_name)
+        group_title = self._get_group_title(group)
+        title = "Comparison of {} at knee points within {}".format(objective, group_title)
 
         if multi_settings:
             xlabel = "settings"
         else:
-            xlabel = group[0]
+            xlabel = self._get_group_name(group, word_separator=" ")
 
         self._start_plot(title, xlabel, objective)
 

@@ -821,6 +821,12 @@
                 "type": "bool",
                 "default": true
             },
+            "number_of_points": {
+                "help": "Maximum number of points per line to mark and supply with an error bar in a line plot",
+                "type": "int",
+                "min": 0,
+                "default": 50
+            },
             "separate_legend_threshold": {
                 "help": "Minimum number of experiments within a group to cause the legend to be placed in its own output file",
                 "type": "int",

@@ -1,5 +1,7 @@
 # Core imports
 import glob
+import itertools
+import json
 import os
 import re
 import shutil
@@ -34,9 +36,35 @@ class Experiment_Results(Experiment):
         self._number_of_processes = self._settings.get("number_of_processes")
 
         self._overrides_in_dirs = self._settings.get("overrides_in_dirs")
-        self._results_path = self._settings.get("results_path")
-        if self._results_path.endswith("/"):
-            self._results_path = self._results_path[:-1]
+
+        results_path = self._settings.get("results_path")
+        self._results_path = os.path.realpath(results_path)
+
+        self._aggregate_file = self._settings.get("aggregate_file")
+        if self._aggregate_file and os.path.exists(self._aggregate_file):
+            with open(self._aggregate_file, "r") as aggregate_file:
+                self._aggregate = json.load(aggregate_file)
+        else:
+            self._aggregate = {}
+
+        aggregrate_fronts = self._settings.get("aggregate_number_of_fronts")
+        if aggregrate_fronts == float('inf'):
+            # When used in a slice operation, `None` causes the whole list to 
+            # be returned (i.e. the same if [:] is used for slicing).
+            self._aggregrate_fronts = None
+        else:
+            self._aggregrate_fronts = aggregrate_fronts
+
+        self._errors = 0
+        self._total = 0
+        self._exists = os.path.exists(self._results_path)
+
+        if self._exists:
+            if self._results_path not in self._aggregate:
+                self._aggregate[self._results_path] = {}
+        else:
+            self._error("Path '{}' does not exist, aggregate results only.".format(self._results_path))
+            self._results_path = "results"
 
         if self._settings.get("singular"):
             # Flatten the experiments
@@ -119,9 +147,6 @@ class Experiment_Results(Experiment):
         for pattern in self._log_patterns.itervalues():
             pattern["regex"] = re.compile(pattern["regex"])
 
-        self._errors = 0
-        self._total = 0
-
         # Settings that directly alter the objectives
         experiment_groups = [
             "collision_avoidance", "unsafe_path_cost", "delta_rate", "*"
@@ -135,7 +160,8 @@ class Experiment_Results(Experiment):
             "algorithm_class": "algorithms"
         }
         self._argument_labelers = {
-            "algorithm_class": self._format_algorithm_class
+            "algorithm_class": self._format_algorithm_class,
+            "discrete": self._format_discrete
         }
 
     def _error(self, message):
@@ -147,6 +173,10 @@ class Experiment_Results(Experiment):
         return self._errors
 
     def execute(self):
+        if not self._exists:
+            self._output()
+            return
+
         for experiment in self._experiments:
             try:
                 setting_keys, combinations = self.get_options(experiment)
@@ -165,6 +195,20 @@ class Experiment_Results(Experiment):
         print("Number of experiments: {}".format(self._total))
         print("Number of directories containing results: {}".format(dir_count))
         print("Number of problems: {}".format(self._errors))
+
+        aggregate_lengths = dict([
+            (path, len(data)) for path, data in self._aggregate.iteritems()
+        ])
+        print("Number of aggregate paths: {}".format(len(self._aggregate)))
+        if self._exists:
+            print("Number of average knees found in this path: {}".format(aggregate_lengths[self._results_path]))
+        print("Number of aggregate average knees: {}".format(sum(aggregate_lengths.values())))
+
+        if self._exists and not self._errors and self._aggregate_file:
+            with open(self._aggregate_file, "w") as aggregate_file:
+                json.dump(self._aggregate, aggregate_file)
+
+            print("Written aggregate knees to {}".format(self._aggregate_file))
 
     def _format_dir_args(self, setting_keys, combination):
         formatted_args = self.format_args(setting_keys, combination)
@@ -185,6 +229,11 @@ class Experiment_Results(Experiment):
 
             data = {}
             self._parse_output_log(path, data)
+
+            if data["errors"]:
+                self._error("Errors for {} process #{}: {}".format(args, i, ", ".join(data["errors"])))
+                continue
+
             self._calculate(data)
 
             process_results.append(data)
@@ -201,6 +250,7 @@ class Experiment_Results(Experiment):
         current_group = None
         data["iteration"] = OrderedDict()
         data["individual"] = OrderedDict()
+        data["errors"] = []
         with open("{}/output.log".format(path), "r") as output_log:
             for line in output_log:
                 for pattern in self._log_patterns.itervalues():
@@ -222,6 +272,12 @@ class Experiment_Results(Experiment):
                             data[current_group][identifier] = {}
 
                         data[current_group][identifier].update(groups)
+
+        with open("{}/error.log".format(path), "r") as error_log:
+            for line in error_log:
+                matches = re.match(r"^(\w+Error): (.*)", line)
+                if matches:
+                    data["errors"].append(": ".join(matches.groups()))
 
     def _is_grouping(self, pattern):
         return pattern["group"] in pattern["names"]
@@ -363,6 +419,10 @@ class Experiment_Results(Experiment):
         self._experiment_results[setting_keys][args] = experiment_results
 
     def _output(self):
+        if not self._exists:
+            self._plot_aggregate()
+            return
+
         for group, experiments in self._experiment_results.iteritems():
             self._find_best_knee(group, experiments)
             self._find_best_front(group, experiments)
@@ -376,6 +436,10 @@ class Experiment_Results(Experiment):
                                          std="{}_std".format(objective),
                                          name="{} at knee".format(objective))
                     self._plot_knee(group, experiments, objective)
+
+            self._aggregate_knee(experiments)
+
+        self._plot_aggregate()
 
     def _get_group_name(self, group, separator=", ", word_separator="_"):
         if isinstance(group, tuple):
@@ -515,11 +579,18 @@ class Experiment_Results(Experiment):
         algorithm = self._algorithms[value]
         return algorithm.get_name()
 
+    def _format_discrete(self, value):
+        return "discrete" if value else "continuous"
+
     def _plot_lines(self, experiments, key, use_keys=True,
                     separate_legend=False, mean="mean", std="std"):
         axes = plt.gca()
         lines = []
         labels = []
+        markers = itertools.cycle([
+            '.', 'o', '*', 'D', 'd', '^', 's', 'p', 'H', 'h', '>'
+        ])
+
         for experiment in experiments.itervalues():
             results = experiment[key]
             x = results.keys()
@@ -530,7 +601,7 @@ class Experiment_Results(Experiment):
             label = ", ".join(args)
             kwargs = {
                 "yerr": yerr,
-                "fmt": "o-"
+                "fmt": "{}-".format(next(markers))
             }
             if len(y) > self._number_of_points:
                 sample = int(np.ceil(len(y) / float(self._number_of_points)))
@@ -591,11 +662,16 @@ class Experiment_Results(Experiment):
         stds = []
         labels = []
         for experiment in experiments.itervalues():
-            means.append(experiment["knee"]["{}_knee".format(objective)])
-            stds.append(experiment["knee"]["{}_std".format(objective)])
+            mean = experiment["knee"]["{}_knee".format(objective)]
+            std = experiment["knee"]["{}_std".format(objective)]
+            means.append(mean)
+            stds.append(std)
 
             args = self._format_label_args(experiment, use_keys=multi_settings)
             labels.append("\n".join(args))
+
+            text = "Knee for {}: {}, objective '{}': mean {}, std {}"
+            print(text.format(group_title, ", ".join(args), objective, mean, std))
 
         indices = np.arange(len(means))
         width = 0.5
@@ -608,8 +684,47 @@ class Experiment_Results(Experiment):
 
     def _finish_plot(self, name):
         filename = "{}/{}.pdf".format(self._results_path, name)
-        plt.savefig(filename)
+        plt.savefig(filename, bbox_inches="tight", transparent=True)
         print("Saved plot as {}".format(filename))
+
+    def _aggregate_knee(self, experiments):
+        for experiment in experiments.itervalues():
+            objectives = []
+            for objective in self._objectives:
+                objectives.append(experiment["knee"]["{}_knee".format(objective)])
+
+            args = self._format_label_args(experiment, use_keys=True)
+            self._aggregate[self._results_path]["-".join(args)] = objectives
+
+    def _plot_aggregate(self):
+        results = np.array(list(itertools.chain(*[
+            data.values() for data in self._aggregate.itervalues()
+        ])))
+        results = results[~np.isinf(results).any(axis=1)]
+
+        if results.size == 0:
+            self._error("No aggregate knees to show in scatter plot")
+            return
+
+        self._start_plot("Objective values for all experiments",
+                         *self._objectives)
+
+        plt.scatter(results[:, 0], results[:, 1])
+
+        algorithm = self._algorithms.values()[0]
+        R = algorithm.sort_nondominated(results)
+        forefronts = np.array(list(itertools.chain(*[
+            front.values() for front in R[:self._aggregrate_fronts]
+        ])))
+
+        for data in self._aggregate.itervalues():
+            for args, objectives in data.iteritems():
+                if np.any(np.all(forefronts == objectives, axis=1)):
+                    print(args)
+                    plt.annotate(args, objectives)
+
+        self._finish_plot("aggregate-scatter")
+        print("{} points in scatter plot".format(results.shape[0]))
 
 def main(argv):
     arguments = Arguments("settings.json", argv)

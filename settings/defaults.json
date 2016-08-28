@@ -833,6 +833,19 @@
                 "min": 0,
                 "inf": true,
                 "default": 6
+            },
+            "aggregate_file": {
+                "help": "Result JSON file that is the base for an aggregate scatter plot. If not used, then only the current run is used for the scatter plots, otherwise previous runs count as well.",
+                "type": "file",
+                "required": false,
+                "default": ""
+            },
+            "aggregate_number_of_fronts": {
+                "help": "Number of fronts in the scatter plot to show labels for",
+                "type": "int",
+                "min": 0,
+                "inf": true,
+                "default": 0
             }
         }
     },
